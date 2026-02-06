@@ -1,0 +1,384 @@
+---
+title: "Open Source a Project"
+description: Publish internal code to GitHub while filtering sensitive files and replacing internal references
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+# Open Source a Project
+
+This guide walks through Copybara's most common use case: publishing internal code to a public GitHub repository while:
+
+- Filtering out sensitive or internal-only files
+- Replacing internal URLs and references
+- Verifying no secrets accidentally leak
+- Automating ongoing sync
+
+## What You'll Learn
+
+- File filtering with `origin_files` and globs
+- Text replacement with `core.replace()`
+- Safety verification with `core.verify_match()`
+- GitHub destination configuration
+- Setting up automated sync
+
+## Scenario
+
+You have an internal repository with this structure:
+
+```
+my-project/
+├── src/
+│   ├── lib.py
+│   ├── cli.py
+│   └── internal/           # Internal-only code
+│       └── metrics.py
+├── tests/
+│   └── test_lib.py
+├── docs/
+│   └── guide.md
+├── .internal/              # Internal config
+│   └── deploy.yaml
+├── README.md
+└── INTERNAL_NOTES.md       # Should not be public
+```
+
+**Goal**: Publish `src/`, `tests/`, `docs/`, and `README.md` to GitHub, excluding internal files and replacing internal references.
+
+## Prerequisites
+
+- Copybara installed (see [Installation](/getting-started/installation/))
+- A GitHub account with a personal access token
+- An internal Git repository (can be local or remote)
+- A GitHub repository created for the public release
+
+## Step 1: Set Up Authentication
+
+Create a GitHub Personal Access Token (PAT) with `repo` scope:
+
+1. Go to [GitHub Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)
+2. Click "Generate new token (classic)"
+3. Select the `repo` scope
+4. Copy the token
+
+Configure Git to use the token:
+
+```bash
+# Store credentials (replace YOUR_TOKEN)
+git config --global credential.helper store
+echo "https://YOUR_GITHUB_USERNAME:YOUR_TOKEN@github.com" >> ~/.git-credentials
+```
+
+<Aside type="caution">
+  Keep your token secure. For production use, consider using fine-grained tokens
+  or SSH keys. See [Authentication](/cicd/authentication/) for more options.
+</Aside>
+
+## Step 2: Write the Configuration
+
+Create `copy.bara.sky`:
+
+```starlark title="copy.bara.sky"
+# Open Source Workflow Configuration
+
+# Repository URLs
+internal_repo = "https://github.com/mycompany/internal-project"
+public_repo = "https://github.com/mycompany/public-project"
+
+core.workflow(
+    name = "export",
+
+    # Source: internal repository
+    origin = git.origin(
+        url = internal_repo,
+        ref = "main",
+    ),
+
+    # Destination: public GitHub repository
+    destination = git.destination(
+        url = public_repo,
+        fetch = "main",
+        push = "main",
+    ),
+
+    # Preserve original authors where possible
+    authoring = authoring.pass_thru(
+        default = "Open Source Bot <oss-bot@mycompany.com>",
+    ),
+
+    # Only include these files (exclude internal directories)
+    origin_files = glob(
+        include = [
+            "src/**",
+            "tests/**",
+            "docs/**",
+            "README.md",
+            "LICENSE",
+            "pyproject.toml",
+            "setup.py",
+        ],
+        exclude = [
+            "src/internal/**",
+            "**/*_internal.py",
+            "**/internal_*",
+        ],
+    ),
+
+    # Transformations applied in order
+    transformations = [
+        # Replace internal URLs
+        core.replace(
+            before = "https://internal.mycompany.com",
+            after = "https://github.com/mycompany/public-project",
+        ),
+
+        # Replace internal package references
+        core.replace(
+            before = "from mycompany.internal",
+            after = "from myproject",
+        ),
+
+        # Replace internal email domain
+        core.replace(
+            before = "@internal.mycompany.com",
+            after = "@mycompany.com",
+        ),
+
+        # SAFETY: Verify no internal markers remain
+        core.verify_match(
+            regex = "INTERNAL|CONFIDENTIAL|DO NOT SHARE|@internal\\.",
+            verify_no_match = True,
+        ),
+
+        # SAFETY: Verify no hardcoded secrets pattern
+        core.verify_match(
+            regex = "(?i)(api[_-]?key|secret|password)\\s*=\\s*['\"][^'\"]+['\"]",
+            verify_no_match = True,
+            paths = glob(["**/*.py", "**/*.yaml", "**/*.yml", "**/*.json"]),
+        ),
+
+        # Add export metadata to commit message
+        metadata.add_header("Exported from internal repository"),
+    ],
+
+    # Combine all changes into one commit
+    mode = "SQUASH",
+)
+```
+
+## Step 3: Understand the Key Parts
+
+### File Filtering with Globs
+
+```starlark
+origin_files = glob(
+    include = ["src/**", "tests/**", "docs/**", "README.md"],
+    exclude = ["src/internal/**", "**/*_internal.py"],
+)
+```
+
+- `include`: Only these patterns are synced
+- `exclude`: These patterns are never synced, even if they match `include`
+- `**` matches any directory depth
+- `*` matches any characters in a filename
+
+### Safety Verification
+
+```starlark
+core.verify_match(
+    regex = "INTERNAL|CONFIDENTIAL",
+    verify_no_match = True,
+)
+```
+
+This **fails the migration** if the regex matches any file. Essential for preventing accidental leaks.
+
+### Authoring
+
+```starlark
+authoring = authoring.pass_thru(
+    default = "Open Source Bot <oss-bot@mycompany.com>",
+)
+```
+
+- `pass_thru`: Preserves original commit authors
+- `default`: Used when original author can't be determined
+
+## Step 4: Test Locally First
+
+Before pushing to GitHub, test with a local folder destination:
+
+```starlark title="copy.bara.sky (testing version)"
+# Temporarily use folder destination for testing
+destination = folder.destination(),
+```
+
+Run with folder output:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export \
+    --folder-dir /tmp/copybara-test \
+    --force
+```
+
+Inspect `/tmp/copybara-test` to verify:
+
+- Only expected files are present
+- Internal files are excluded
+- Text replacements are correct
+
+## Step 5: Run the Migration
+
+Once verified, run the actual migration:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export --force
+```
+
+The `--force` flag is needed for the initial migration.
+
+## Step 6: Set Up Automated Sync
+
+For ongoing synchronization, create a GitHub Actions workflow:
+
+```yaml title=".github/workflows/sync-to-public.yml"
+name: Sync to Public Repo
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "docs/**"
+      - "README.md"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Download Copybara
+        run: |
+          curl -fsSL -o copybara.jar \
+            https://github.com/google/copybara/releases/latest/download/copybara_deploy.jar
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global credential.helper store
+          echo "https://x-access-token:${{ secrets.PUBLIC_REPO_TOKEN }}@github.com" >> ~/.git-credentials
+
+      - name: Run Copybara
+        run: |
+          java -jar copybara.jar migrate copy.bara.sky export --ignore-noop
+```
+
+<Aside type="note">
+  Create a repository secret `PUBLIC_REPO_TOKEN` with a PAT that has write
+  access to the public repository.
+</Aside>
+
+## Complete Example
+
+Here's the full workflow showing the sync process:
+
+```d2
+direction: right
+
+internal: Internal Repo {
+  all: "All Files" {
+    src: "src/**"
+    internal: "src/internal/**" {
+      style.fill: "#ffcccc"
+    }
+    tests: "tests/**"
+    secret: ".internal/" {
+      style.fill: "#ffcccc"
+    }
+  }
+}
+
+copybara: Copybara {
+  filter: "Filter files"
+  transform: "Replace text"
+  verify: "Verify no secrets"
+}
+
+public: Public GitHub {
+  files: "src/**\ntests/**\ndocs/**\nREADME.md"
+}
+
+internal -> copybara: "origin_files\nglob filter"
+copybara -> public: "Safe, transformed\ncode only"
+```
+
+## Adding More Transformations
+
+### Rename Files or Directories
+
+```starlark
+transformations = [
+    # Move internal path to standard path
+    core.move("src/mycompany/", "src/myproject/"),
+]
+```
+
+### Remove Internal Comments
+
+```starlark
+transformations = [
+    # Remove lines containing internal comments
+    core.replace(
+        before = "# INTERNAL:${content}\n",
+        after = "",
+        regex_groups = {"content": ".*"},
+        multiline = True,
+    ),
+]
+```
+
+### Add License Headers
+
+```starlark
+transformations = [
+    # Handled via core.transform or custom transformations
+    # See Transformations docs for details
+]
+```
+
+## Troubleshooting
+
+### "verify_match found matches"
+
+The safety check found content that shouldn't be public. Check the error message for which file and pattern matched, then either:
+
+1. Remove the content from source
+2. Add the file to `exclude` in `origin_files`
+3. Add a transformation to remove/replace it
+
+### "Nothing to migrate"
+
+No new changes since last sync. This is normal - use `--ignore-noop` in CI to not fail.
+
+### "Authentication failed"
+
+Check that your token has the correct permissions and hasn't expired. See [Authentication](/cicd/authentication/).
+
+## Next Steps
+
+- [Transformations Overview](/transformations/overview/) - All available transformations
+- [GitHub Integration](/endpoints/github/) - GitHub-specific features
+- [GitHub Actions Setup](/cicd/github-actions/) - CI/CD automation
+- [SQUASH vs ITERATIVE](/workflows/squash-vs-iterative/) - Choosing a workflow mode

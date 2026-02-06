@@ -1,0 +1,57 @@
+---
+title: Guides
+description: Step-by-step tutorials for common Copybara workflows
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+# Guides
+
+Hands-on tutorials to help you learn Copybara through practical examples.
+
+<CardGrid>
+  <Card title="Hello World" icon="rocket">
+    Your first Copybara workflow - sync files between local Git repositories
+    with a simple transformation.
+
+    [Start the tutorial →](/guides/hello-world/)
+
+  </Card>
+  <Card title="Open Source a Project" icon="github">
+    Publish internal code to GitHub while filtering sensitive files and
+    replacing internal references.
+
+    [Start the tutorial →](/guides/open-source-project/)
+
+  </Card>
+</CardGrid>
+
+## Prerequisites
+
+Before starting these guides, make sure you have:
+
+- **Java 11 or later** installed ([download](https://adoptium.net/))
+- **Git** installed and configured
+- **Copybara JAR** downloaded (see [Installation](/getting-started/installation/))
+
+## Which Guide Should I Start With?
+
+| If you want to...         | Start with                                            |
+| ------------------------- | ----------------------------------------------------- |
+| Learn Copybara basics     | [Hello World](/guides/hello-world/)                   |
+| Publish code to GitHub    | [Open Source a Project](/guides/open-source-project/) |
+| Understand concepts first | [Core Concepts](/getting-started/concepts/)           |
+
+## Quick Reference
+
+All guides use the same basic command pattern:
+
+```bash
+java -jar copybara.jar migrate <config-file> <workflow-name>
+```
+
+For example:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky default
+```

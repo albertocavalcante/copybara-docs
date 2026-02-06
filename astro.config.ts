@@ -68,6 +68,14 @@ export default defineConfig({
 					],
 				},
 				{
+					label: 'Guides',
+					items: [
+						{ label: 'Overview', slug: 'guides' },
+						{ label: 'Hello World', slug: 'guides/hello-world' },
+						{ label: 'Open Source a Project', slug: 'guides/open-source-project' },
+					],
+				},
+				{
 					label: 'Workflows',
 					items: [
 						{ label: 'Overview', slug: 'workflows/overview' },
