@@ -1,22 +1,29 @@
 ---
 title: Copybara Documentation
-description: Comprehensive documentation for Google Copybara - transform and move code between repositories
+description: Unofficial community documentation for Google Copybara - transform and move code between repositories
 template: splash
 hero:
-  tagline: Transform and sync code between repositories with powerful configuration
+  tagline: Unofficial community docs for Google's code transformation tool
   image:
     file: ../../assets/houston.webp
   actions:
     - text: Get Started
       link: /copybara-docs/getting-started/introduction/
       icon: right-arrow
-    - text: View on GitHub
+    - text: Official Repo
       link: https://github.com/google/copybara
       icon: external
       variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Card, CardGrid, Aside } from '@astrojs/starlight/components';
+
+<Aside type="caution" title="Unofficial Documentation">
+This is **community-maintained documentation**, not official Google documentation. For official resources, see:
+- [Official Repository](https://github.com/google/copybara)
+- [Official Reference](https://github.com/google/copybara/blob/master/docs/reference.md)
+- [Official Examples](https://github.com/google/copybara/blob/master/docs/examples.md)
+</Aside>
 
 ## What is Copybara?
 
@@ -73,3 +80,7 @@ core.workflow(
 | **Transformations** | Modify paths, content, and metadata during sync |
 | **State tracking** | Automatically tracks what's been synced |
 | **PR-based** | Create PRs instead of direct pushes |
+
+## Acknowledgements
+
+[Copybara](https://github.com/google/copybara) is developed by Google and licensed under [Apache License 2.0](https://github.com/google/copybara/blob/master/LICENSE).

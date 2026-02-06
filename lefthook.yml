@@ -1,0 +1,31 @@
+# Lefthook configuration for pre-commit hooks
+# https://github.com/evilmartians/lefthook
+#
+# Install hooks: lefthook install
+# Run manually: lefthook run pre-commit
+
+pre-commit:
+  parallel: true
+  commands:
+    # Check formatting with dprint
+    dprint:
+      glob: "*.{md,mdx,json,yml,yaml}"
+      run: dprint check {staged_files}
+
+    # TypeScript/Astro check
+    astro-check:
+      glob: "*.{ts,astro,mdx}"
+      run: bunx astro check
+
+pre-push:
+  parallel: true
+  commands:
+    # Full build before push
+    build:
+      run: bun run build
+
+# Output settings
+output:
+  - meta
+  - summary
+  - success
