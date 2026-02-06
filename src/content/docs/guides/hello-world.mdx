@@ -1,59 +1,80 @@
 ---
 title: "Hello World"
-description: Your first Copybara workflow - sync files between local Git repositories
+description: Your first Copybara workflow - learn the basics step by step
 ---
 
-import { Aside, Steps, Tabs, TabItem } from "@astrojs/starlight/components";
+import { Aside, Steps, FileTree } from "@astrojs/starlight/components";
 
 # Hello World
 
-In this guide, you'll create your first Copybara workflow that:
+Welcome to your first Copybara tutorial! By the end of this guide, you'll understand how Copybara works by syncing files between two local folders.
 
-1. Reads files from a local Git repository
-2. Applies a simple text transformation
-3. Writes the result to another local Git repository
+**No GitHub account or remote servers needed** - everything runs on your computer.
 
-No remote repositories or authentication required - everything runs locally.
+## What You'll Build
 
-## What You'll Learn
+You'll create a workflow that:
 
-- How to write a basic `copy.bara.sky` configuration
-- How origins and destinations work
-- How to apply transformations
-- How to run Copybara
+1. Reads files from a "source" folder
+2. Replaces placeholder text (like `MYCOMPANY` → `Acme Corp`)
+3. Writes the transformed files to a "destination" folder
 
-## Prerequisites
+This is the same pattern used for real-world tasks like publishing internal code to GitHub.
 
-- Java 11+ installed
-- Git installed
-- Copybara JAR downloaded (see [Installation](/getting-started/installation/))
+## Before You Start
 
-## Step 1: Create the Source Repository
+Make sure you have:
 
-First, create a local Git repository that will be our **origin** (source):
+- **Java 11 or newer** - Check with `java -version`
+- **Git** - Check with `git --version`
+- **Copybara JAR file** - See [Installation](/getting-started/installation/)
+
+<Aside type="tip">
+  If you haven't installed Copybara yet, the easiest way is to download the JAR
+  from the [GitHub releases page](https://github.com/google/copybara/releases).
+</Aside>
+
+## Project Setup
+
+We'll create this folder structure:
+
+<FileTree>
+
+- copybara-tutorial/
+  - source/ The folder we'll read from (origin)
+    - README.md
+    - src/
+      - app.py
+  - destination/ The folder we'll write to (empty for now)
+  - copy.bara.sky Your Copybara configuration
+
+</FileTree>
+
+### Create the folders
+
+Open your terminal and run:
 
 ```bash
-# Create and initialize the source repo
-mkdir -p ~/copybara-tutorial/source
-cd ~/copybara-tutorial/source
-git init
+mkdir -p ~/copybara-tutorial/source/src
+mkdir -p ~/copybara-tutorial/destination
+cd ~/copybara-tutorial
+```
 
-# Create a sample file
-cat > README.md << 'EOF'
-# My Project
+### Create the source files
 
-Welcome to MYPROJECT!
+Create `source/README.md` with this content:
 
-This project is maintained by MYCOMPANY.
+```markdown title="source/README.md"
+# Welcome to MYPROJECT
 
-## Getting Started
+This project is built by MYCOMPANY.
 
-Visit https://internal.mycompany.com/docs for documentation.
-EOF
+For help, contact support@internal.mycompany.com
+```
 
-# Create a source file
-mkdir -p src
-cat > src/main.py << 'EOF'
+Create `source/src/app.py` with this content:
+
+```python title="source/src/app.py"
 # MYPROJECT - Main Application
 # Copyright MYCOMPANY
 
@@ -62,293 +83,310 @@ def main():
 
 if __name__ == "__main__":
     main()
-EOF
+```
 
-# Commit the files
+<Aside>
+  You can create these files using any text editor - VS Code, Sublime, nano,
+  vim, or even Notepad.
+</Aside>
+
+### Initialize Git repositories
+
+Copybara works with Git repositories, so we need to initialize both folders:
+
+```bash
+# Initialize the source repository
+cd ~/copybara-tutorial/source
+git init
 git add .
 git commit -m "Initial commit"
 ```
 
-## Step 2: Create the Destination Repository
-
-Create another local Git repository that will be our **destination**:
-
 ```bash
-# Create and initialize the destination repo
-mkdir -p ~/copybara-tutorial/destination
+# Initialize the destination repository
 cd ~/copybara-tutorial/destination
 git init
-
-# Create an initial commit (required for Copybara)
-git commit --allow-empty -m "Initial empty commit"
+git commit --allow-empty -m "Initial commit"
 ```
 
-## Step 3: Write the Copybara Configuration
+<Aside type="note">
+  The destination needs an initial commit (even an empty one) so Copybara has
+  something to compare against.
+</Aside>
 
-Create the Copybara configuration file:
+## Write the Configuration
 
-```bash
-cd ~/copybara-tutorial
-```
+Now for the main part - the Copybara configuration file.
 
-Create `copy.bara.sky` with the following content:
+Create `copy.bara.sky` in the `copybara-tutorial` folder:
 
 ```starlark title="copy.bara.sky"
-# Copybara Hello World Configuration
-
-# Define repository URLs (using local file:// protocol)
-source_url = "file:///Users/YOUR_USERNAME/copybara-tutorial/source"
-dest_url = "file:///Users/YOUR_USERNAME/copybara-tutorial/destination"
+sourceUrl = "file://" + "/Users/YOURNAME/copybara-tutorial/source"
+destinationUrl = "file://" + "/Users/YOURNAME/copybara-tutorial/destination"
 
 core.workflow(
     name = "default",
 
-    # Where to read code from
     origin = git.origin(
-        url = source_url,
-        ref = "master",  # or "main" depending on your Git config
+        url = sourceUrl,
+        ref = "main",
     ),
 
-    # Where to write code to
     destination = git.destination(
-        url = dest_url,
-        fetch = "master",
-        push = "master",
+        url = destinationUrl,
+        fetch = "main",
+        push = "main",
     ),
 
-    # Who authored the changes in the destination
-    authoring = authoring.overwrite(
-        "Copybara Bot <copybara@example.com>"
-    ),
+    authoring = authoring.overwrite("Tutorial <tutorial@example.com>"),
 
-    # Transformations to apply
     transformations = [
-        # Replace placeholder company name
         core.replace(
             before = "MYCOMPANY",
-            after = "Acme Corporation",
+            after = "Acme Corp",
         ),
-        # Replace placeholder project name
         core.replace(
             before = "MYPROJECT",
-            after = "Hello World App",
+            after = "My Awesome App",
         ),
-        # Replace internal URL with public URL
         core.replace(
-            before = "https://internal.mycompany.com/docs",
-            after = "https://docs.example.com",
+            before = "internal.mycompany.com",
+            after = "example.com",
         ),
     ],
 )
 ```
 
-<Aside type="caution">
-  Replace `YOUR_USERNAME` with your actual username in the file paths. On
-  macOS/Linux you can use `$HOME` or the full path.
+<Aside type="caution" title="Important: Update the paths!">
+  Replace `YOURNAME` with your actual username. For example:
+  - macOS: `/Users/alice/copybara-tutorial/source`
+  - Linux: `/home/alice/copybara-tutorial/source`
+
+Find your home folder with `echo $HOME` in the terminal.
+
 </Aside>
 
-## Step 4: Run Copybara
+### Understanding the configuration
 
-Now run Copybara to sync from source to destination:
+Let's break down what each part does:
+
+| Part              | What it does                                     |
+| ----------------- | ------------------------------------------------ |
+| `origin`          | Where to read files from (our source folder)     |
+| `destination`     | Where to write files to (our destination folder) |
+| `ref = "main"`    | Which Git branch to use                          |
+| `authoring`       | Who to credit as the commit author               |
+| `transformations` | Changes to make to the files                     |
+
+The `core.replace()` transformation finds text and replaces it - like find-and-replace in a text editor, but for your entire project.
+
+## Run Copybara
+
+Now let's run it! From the `copybara-tutorial` folder:
 
 ```bash
 cd ~/copybara-tutorial
 
-java -jar /path/to/copybara.jar migrate copy.bara.sky default --force
+java -jar copybara.jar migrate copy.bara.sky default --force
 ```
 
-<Aside type="note">
-  The `--force` flag is needed for the initial migration since there's no
-  previous sync state.
+<Aside type="note" title="About the flags">
+  - `migrate` - The command to run a sync
+  - `copy.bara.sky` - Your configuration file
+  - `default` - The workflow name (we named it "default" in the config)
+  - `--force` - Required for the first run
+
+See all available flags in the [CLI Reference](/reference/cli/).
+
 </Aside>
 
-You should see output like:
+**Don't have `copybara.jar` in this folder?** Use the full path:
+
+```bash
+java -jar ~/Downloads/copybara_deploy.jar migrate copy.bara.sky default --force
+```
+
+You should see output ending with:
 
 ```
-Task: default
-...
 Migration finished successfully.
 ```
 
-## Step 5: Verify the Results
+## Check the Results
 
-Check what was created in the destination repository:
+Let's see what Copybara created:
 
 ```bash
 cd ~/copybara-tutorial/destination
-git log --oneline
-cat README.md
-cat src/main.py
+ls -la
 ```
 
-You should see:
+You should see `README.md` and `src/app.py`.
 
-**README.md** (with replacements applied):
+Now check the content:
+
+```bash
+cat README.md
+```
+
+**Output:**
 
 ```markdown
-# My Project
+# Welcome to My Awesome App
 
-Welcome to Hello World App!
+This project is built by Acme Corp.
 
-This project is maintained by Acme Corporation.
-
-## Getting Started
-
-Visit https://docs.example.com for documentation.
+For help, contact support@example.com
 ```
 
-**src/main.py** (with replacements applied):
+The placeholders were replaced:
+
+| Before                   | After            |
+| ------------------------ | ---------------- |
+| `MYPROJECT`              | `My Awesome App` |
+| `MYCOMPANY`              | `Acme Corp`      |
+| `internal.mycompany.com` | `example.com`    |
+
+Check the Python file too:
+
+```bash
+cat src/app.py
+```
 
 ```python
-# Hello World App - Main Application
-# Copyright Acme Corporation
+# My Awesome App - Main Application
+# Copyright Acme Corp
 
 def main():
-    print("Hello from Hello World App!")
+    print("Hello from My Awesome App!")
 
 if __name__ == "__main__":
     main()
 ```
 
-## What Just Happened?
+## What Happened?
 
 ```d2
 direction: right
 
-source: Source Repo {
-  files: "README.md\nsrc/main.py"
+source: Source Folder {
+  label: "source/"
+  readme: "README.md\nMYCOMPANY, MYPROJECT"
+  app: "src/app.py"
 }
 
 copybara: Copybara {
-  transform: "Replace text:\nMYCOMPANY → Acme\nMYPROJECT → Hello World"
+  label: "Copybara"
+  t1: "MYCOMPANY → Acme Corp"
+  t2: "MYPROJECT → My Awesome App"
 }
 
-dest: Destination Repo {
-  files: "README.md (transformed)\nsrc/main.py (transformed)"
+dest: Destination Folder {
+  label: "destination/"
+  readme: "README.md\nAcme Corp, My Awesome App"
+  app: "src/app.py"
 }
 
-source -> copybara: read
-copybara -> dest: write
+source -> copybara: "1. Read"
+copybara -> dest: "2. Transform\n3. Write"
 ```
 
 Copybara:
 
-1. **Read** all files from the source repository
-2. **Transformed** the content by replacing placeholder text
-3. **Wrote** the transformed files to the destination repository
-4. **Committed** the changes with the configured author
+1. **Read** all committed files from the source Git repository
+2. **Applied transformations** - replaced the placeholder text
+3. **Wrote** the transformed files to the destination
+4. **Committed** the changes in the destination repository
 
-## Step 6: Make Changes and Sync Again
+## Make a Change and Sync Again
 
-Let's see how incremental sync works. Add a new file to the source:
+Let's see incremental sync in action. Edit the source file:
 
 ```bash
 cd ~/copybara-tutorial/source
+```
 
-cat > src/utils.py << 'EOF'
-# MYPROJECT Utilities
-# Copyright MYCOMPANY
+Add a new file `source/src/utils.py`:
+
+```python title="source/src/utils.py"
+# MYPROJECT utilities
+# Author: MYCOMPANY Team
 
 def helper():
-    return "Helper function for MYPROJECT"
-EOF
+    return "I help MYPROJECT run smoothly!"
+```
 
+Commit the change:
+
+```bash
 git add src/utils.py
 git commit -m "Add utilities"
 ```
 
-Run Copybara again (no `--force` needed this time):
+Run Copybara again (no `--force` needed now):
 
 ```bash
 cd ~/copybara-tutorial
-java -jar /path/to/copybara.jar migrate copy.bara.sky default
+java -jar copybara.jar migrate copy.bara.sky default
 ```
 
 Check the destination:
 
 ```bash
-cd ~/copybara-tutorial/destination
-git log --oneline
-cat src/utils.py
+cat ~/copybara-tutorial/destination/src/utils.py
 ```
 
-The new file appears with transformations applied, and only the new changes were synced.
-
-## Understanding the Configuration
-
-Let's break down the key parts:
-
-### Origin
-
-```starlark
-origin = git.origin(
-    url = source_url,
-    ref = "master",
-)
-```
-
-Specifies where to read code from. The `ref` parameter indicates which branch to sync.
-
-### Destination
-
-```starlark
-destination = git.destination(
-    url = dest_url,
-    fetch = "master",
-    push = "master",
-)
-```
-
-Specifies where to write code to. `fetch` is the branch to compare against, `push` is where to write.
-
-### Authoring
-
-```starlark
-authoring = authoring.overwrite(
-    "Copybara Bot <copybara@example.com>"
-)
-```
-
-Sets the author for commits in the destination. Other options include `authoring.pass_thru()` to preserve original authors.
-
-### Transformations
-
-```starlark
-transformations = [
-    core.replace(before = "X", after = "Y"),
-]
-```
-
-A list of transformations applied in order. Each `core.replace()` does a global text replacement.
-
-## Next Steps
-
-Now that you understand the basics:
-
-- [Open Source a Project](/guides/open-source-project/) - A real-world example with file filtering
-- [Transformations Overview](/transformations/overview/) - All available transformations
-- [Workflow Modes](/workflows/modes/) - Different ways to sync (SQUASH, ITERATIVE, etc.)
+The new file appears with all replacements applied - only the new changes were synced.
 
 ## Troubleshooting
 
-### "Cannot find reference 'master'"
+### "Cannot find reference 'main'"
 
-Your Git may default to `main` instead of `master`. Update the config:
+Your Git might use `master` as the default branch. Either:
+
+**Option A:** Change the config to use `master`:
 
 ```starlark
-ref = "main",
-fetch = "main",
-push = "main",
+ref = "master",
+fetch = "master",
+push = "master",
+```
+
+**Option B:** Rename your branch to `main`:
+
+```bash
+cd ~/copybara-tutorial/source
+git branch -m master main
+cd ~/copybara-tutorial/destination
+git branch -m master main
 ```
 
 ### "Nothing to migrate"
 
-The source and destination are already in sync. Make a change in the source repo and commit it.
+This means source and destination are already in sync. Make a change in the source, commit it, then run Copybara again.
 
 ### "Cannot find workflow 'default'"
 
-Make sure your workflow is named `"default"` or specify the correct name:
+Make sure your workflow in `copy.bara.sky` has `name = "default"`, or use the name you chose:
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky YOUR_WORKFLOW_NAME
+java -jar copybara.jar migrate copy.bara.sky YOUR_WORKFLOW_NAME --force
 ```
+
+### Java errors about paths
+
+Double-check that:
+
+1. The paths in your config use `file://` prefix
+2. The paths are absolute (start with `/`)
+3. You replaced `YOURNAME` with your actual username
+4. Both Git repos have at least one commit
+
+## What's Next?
+
+Now that you understand the basics:
+
+- **[Open Source a Project](/guides/open-source-project/)** - A real-world example with GitHub
+- **[CLI Reference](/reference/cli/)** - All available commands and flags
+- **[Transformations](/transformations/overview/)** - All the ways to modify files
+- **[Core Concepts](/getting-started/concepts/)** - Deeper understanding of Copybara
