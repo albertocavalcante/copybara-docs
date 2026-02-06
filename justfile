@@ -14,15 +14,15 @@ setup: install
 
 # Start development server
 dev:
-    bun dev
+    bun run dev
 
 # Build for production
 build:
-    bun build
+    bun run build
 
 # Preview production build locally
 preview: build
-    bun preview
+    bun run preview
 
 # Format code
 fmt:
