@@ -1,0 +1,295 @@
+---
+title: Configuration File Structure
+description: Understanding copy.bara.sky file organization
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Configuration File Structure
+
+Copybara uses Starlark configuration files, typically named `copy.bara.sky`.
+
+## Basic Structure
+
+```starlark title="copy.bara.sky"
+# Variables (optional)
+internal_url = "https://github.com/org/internal"
+external_url = "https://github.com/org/external"
+
+# Workflow definitions
+core.workflow(
+    name = "export",
+    origin = git.origin(url = internal_url, ref = "main"),
+    destination = git.destination(url = external_url, push = "main"),
+    authoring = authoring.pass_thru("Bot <bot@example.com>"),
+    transformations = [...],
+)
+
+# Additional workflows
+core.workflow(
+    name = "import",
+    ...
+)
+```
+
+## File Naming
+
+| File | Purpose |
+|------|---------|
+| `copy.bara.sky` | Standard configuration file |
+| `*.bara.sky` | Any `.bara.sky` extension works |
+
+## Variables
+
+Define reusable values at the top:
+
+```starlark
+# Repository URLs
+internal_repo = "https://github.com/myorg/internal"
+public_repo = "https://github.com/myorg/public"
+
+# Common patterns
+internal_globs = glob(["**/internal/**"])
+public_files = glob(["src/**", "docs/**"])
+
+# Author info
+default_author = "Sync Bot <sync@example.com>"
+```
+
+## Functions
+
+Define reusable transformation functions:
+
+```starlark
+def common_transforms():
+    """Transformations used in multiple workflows."""
+    return [
+        core.replace("internal.corp", "example.com"),
+        core.verify_match(
+            regex = "SECRET",
+            verify_no_match = True,
+        ),
+    ]
+
+core.workflow(
+    name = "export",
+    transformations = common_transforms() + [
+        core.move("src/", ""),
+    ],
+    ...
+)
+```
+
+## Multiple Workflows
+
+One file can contain multiple workflows:
+
+```starlark
+# Export: internal → external
+core.workflow(
+    name = "export",
+    origin = git.origin(url = internal_url, ref = "main"),
+    destination = git.github_destination(url = external_url, push = "main"),
+    ...
+)
+
+# Import: external PRs → internal
+core.workflow(
+    name = "import",
+    origin = git.github_pr_origin(url = external_url, branch = "main"),
+    destination = git.gerrit_destination(url = internal_url, ...),
+    ...
+)
+
+# Validate: dry run
+core.workflow(
+    name = "validate",
+    origin = git.origin(url = internal_url, ref = "main"),
+    destination = folder.destination(),
+    ...
+)
+```
+
+Run specific workflow:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export
+java -jar copybara.jar migrate copy.bara.sky import
+```
+
+## Conditional Logic
+
+Use Starlark conditionals:
+
+```starlark
+# Environment-based configuration
+is_production = True
+
+transforms = [
+    core.move("src/", "lib/"),
+]
+
+if is_production:
+    transforms.append(
+        core.verify_match(regex = "DEBUG", verify_no_match = True)
+    )
+
+core.workflow(
+    name = "export",
+    transformations = transforms,
+    ...
+)
+```
+
+## Imports
+
+Split configuration across files:
+
+```starlark title="common.bara.sky"
+def standard_transforms():
+    return [
+        core.replace("internal", "external"),
+    ]
+
+INTERNAL_URL = "https://github.com/org/internal"
+```
+
+```starlark title="copy.bara.sky"
+load("common.bara.sky", "standard_transforms", "INTERNAL_URL")
+
+core.workflow(
+    name = "export",
+    origin = git.origin(url = INTERNAL_URL, ref = "main"),
+    transformations = standard_transforms(),
+    ...
+)
+```
+
+<Aside type="note">
+The `load` function imports symbols from other Starlark files.
+</Aside>
+
+## Comments
+
+Use `#` for comments:
+
+```starlark
+# Main export workflow
+# Syncs internal code to public GitHub repository
+core.workflow(
+    name = "export",  # Unique identifier
+    origin = git.origin(
+        url = "https://github.com/org/internal",
+        ref = "main",  # Track main branch
+    ),
+    ...
+)
+```
+
+## Organization Patterns
+
+### By Direction
+
+```
+copybara/
+├── export.bara.sky    # Internal → External
+├── import.bara.sky    # External → Internal
+└── common.bara.sky    # Shared definitions
+```
+
+### By Target
+
+```
+copybara/
+├── github.bara.sky    # Sync to GitHub
+├── gerrit.bara.sky    # Sync to Gerrit
+└── common.bara.sky    # Shared definitions
+```
+
+### Single File
+
+```
+copy.bara.sky          # All workflows in one file
+```
+
+<Aside type="tip">
+Start with a single file. Split when it becomes unwieldy.
+</Aside>
+
+## Complete Example
+
+```starlark title="copy.bara.sky"
+# Configuration for syncing between internal and public repositories
+
+# ==== Variables ====
+INTERNAL = "https://github.com/myorg/internal"
+PUBLIC = "https://github.com/myorg/public"
+BOT = "Sync Bot <sync@myorg.com>"
+
+# ==== Shared Transforms ====
+def security_checks():
+    """Verify no secrets are exposed."""
+    return [
+        core.verify_match(
+            regex = "API_KEY|SECRET|PASSWORD",
+            verify_no_match = True,
+        ),
+    ]
+
+def url_transforms():
+    """Replace internal URLs."""
+    return [
+        core.replace("internal.myorg.com", "api.myorg.io"),
+    ]
+
+# ==== Workflows ====
+
+# Export internal code to public repository
+core.workflow(
+    name = "export",
+    origin = git.github_origin(
+        url = INTERNAL,
+        ref = "main",
+    ),
+    destination = git.github_pr_destination(
+        url = PUBLIC,
+        destination_ref = "main",
+        pr_branch = "sync/${CONTEXT_REFERENCE}",
+    ),
+    origin_files = glob(
+        include = ["src/**", "docs/**"],
+        exclude = ["**/internal/**"],
+    ),
+    authoring = authoring.pass_thru(BOT),
+    transformations = security_checks() + url_transforms() + [
+        core.move("src/public/", "src/"),
+        metadata.add_header("Synced-From: internal"),
+    ],
+    mode = "SQUASH",
+)
+
+# Import external contributions
+core.workflow(
+    name = "import",
+    origin = git.github_pr_origin(
+        url = PUBLIC,
+        branch = "main",
+        required_labels = ["ready-to-import"],
+    ),
+    destination = git.gerrit_destination(
+        url = INTERNAL,
+        fetch = "main",
+        push_to_refs_for = "main",
+    ),
+    authoring = authoring.pass_thru(BOT),
+    transformations = [
+        core.move("src/", "src/public/"),
+    ],
+    mode = "CHANGE_REQUEST_FROM_SOT",
+)
+```
+
+## Next Steps
+
+- [Glob patterns](/copybara-docs/config/glob-patterns/)
+- [Authoring configuration](/copybara-docs/config/authoring/)

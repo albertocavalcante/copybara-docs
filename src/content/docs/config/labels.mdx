@@ -1,0 +1,192 @@
+---
+title: Labels & Markers
+description: Using labels for state tracking and metadata
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Labels & Markers
+
+Labels are key-value pairs extracted from or added to commit messages.
+
+## State Tracking Labels
+
+Copybara uses labels to track synchronization state:
+
+```
+GitOrigin-RevId: abc123def456789
+```
+
+This label tells Copybara which origin commit was last synced.
+
+<Aside type="caution">
+Never remove `GitOrigin-RevId` labels. They're essential for incremental syncs.
+</Aside>
+
+## Exposing Labels
+
+Make labels from origin commits available:
+
+```starlark
+transformations = [
+    metadata.expose_label("Bug"),
+    metadata.expose_label("Reviewed-by"),
+    metadata.expose_label("Co-authored-by"),
+]
+```
+
+### Standard Git Trailers
+
+```starlark
+# Common Git trailers
+metadata.expose_label("Signed-off-by"),
+metadata.expose_label("Co-authored-by"),
+metadata.expose_label("Reviewed-by"),
+metadata.expose_label("Acked-by"),
+```
+
+### GitHub Keywords
+
+```starlark
+# GitHub issue references
+metadata.expose_label("Closes"),
+metadata.expose_label("Fixes"),
+metadata.expose_label("Resolves"),
+```
+
+## Adding Labels
+
+Add labels to destination commits:
+
+```starlark
+metadata.add_header("Synced-From: internal-repo")
+```
+
+### Dynamic Labels
+
+```starlark
+metadata.add_header(
+    text = "Original-Commit: ${COPYBARA_CONTEXT_REFERENCE}",
+)
+```
+
+### Multiple Labels
+
+```starlark
+transformations = [
+    metadata.add_header("Synced-From: internal"),
+    metadata.add_header("Sync-Tool: copybara"),
+    metadata.add_header("Sync-Time: ${COPYBARA_CURRENT_TIME}"),
+]
+```
+
+## Label Format
+
+Labels in commit messages use the format:
+
+```
+Label-Name: value
+```
+
+Example commit message:
+
+```
+Fix authentication bug
+
+This commit fixes the login issue.
+
+Bug: 12345
+Reviewed-by: alice@example.com
+GitOrigin-RevId: abc123def456
+```
+
+## Using Labels in Transforms
+
+Reference labels in transformations:
+
+```starlark
+metadata.add_header(
+    text = "Original-Bug: ${Bug}",
+    ignore_label_not_found = True,  # Don't fail if label missing
+)
+```
+
+## Removing Labels
+
+Remove labels from destination commits:
+
+```starlark
+metadata.remove_label("Internal-Bug")
+```
+
+## Label Variables
+
+Available variables in label templates:
+
+| Variable | Description |
+|----------|-------------|
+| `${COPYBARA_CONTEXT_REFERENCE}` | Origin commit SHA |
+| `${COPYBARA_CURRENT_TIME}` | Current timestamp |
+| `${COPYBARA_WORKFLOW_NAME}` | Workflow name |
+| `${label_name}` | Value of exposed label |
+
+## Complete Example
+
+```starlark
+transformations = [
+    # Expose original labels
+    metadata.expose_label("Bug"),
+    metadata.expose_label("Co-authored-by"),
+    metadata.expose_label("Reviewed-by"),
+
+    # Remove internal-only labels
+    metadata.remove_label("Internal-Reviewer"),
+    metadata.remove_label("Internal-Bug"),
+
+    # Add sync metadata
+    metadata.add_header("Synced-From: internal"),
+    metadata.add_header("Original-Commit: ${COPYBARA_CONTEXT_REFERENCE}"),
+
+    # Preserve bug reference if present
+    metadata.add_header(
+        text = "Original-Bug: ${Bug}",
+        ignore_label_not_found = True,
+    ),
+]
+```
+
+## Label Precedence
+
+When the same label appears multiple times:
+- First occurrence is used for `${label}` substitution
+- All occurrences are preserved in commit message (unless removed)
+
+## State Tracking
+
+Copybara automatically adds:
+
+```
+GitOrigin-RevId: <sha>
+```
+
+This enables:
+- Incremental syncs (only new commits)
+- Tracking which origin commit produced each destination commit
+- State recovery after failures
+
+## Overriding State
+
+```bash
+# Start from specific commit
+java -jar copybara.jar migrate copy.bara.sky workflow \
+  --last-rev abc123
+
+# Ignore existing state
+java -jar copybara.jar migrate copy.bara.sky workflow \
+  --force
+```
+
+## Next Steps
+
+- [Metadata transformations](/copybara-docs/transformations/metadata/)
+- [Workflow modes](/copybara-docs/workflows/modes/)

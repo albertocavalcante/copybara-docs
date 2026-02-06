@@ -1,0 +1,203 @@
+---
+title: CLI Reference
+description: Copybara command-line interface reference
+---
+
+# CLI Reference
+
+Copybara command-line interface.
+
+## Basic Usage
+
+```bash
+java -jar copybara_deploy.jar <command> <config_file> [workflow] [flags]
+```
+
+## Commands
+
+### migrate
+
+Run a synchronization workflow:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky workflow_name [flags]
+```
+
+### validate
+
+Validate configuration without running:
+
+```bash
+java -jar copybara.jar validate copy.bara.sky [workflow_name]
+```
+
+### info
+
+Show information about a workflow:
+
+```bash
+java -jar copybara.jar info copy.bara.sky workflow_name
+```
+
+### feedback
+
+Run a feedback workflow:
+
+```bash
+java -jar copybara.jar feedback copy.bara.sky feedback_workflow_name
+```
+
+## Common Flags
+
+### --init-history
+
+Process all history (first-time sync):
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export --init-history
+```
+
+### --last-rev
+
+Start from a specific commit:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export --last-rev abc123
+```
+
+### --force
+
+Force sync (ignore state, overwrite destination):
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export --force
+```
+
+### --ignore-noop
+
+Don't fail if there are no changes:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export --ignore-noop
+```
+
+### --dry-run
+
+Show what would happen without making changes:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export --dry-run
+```
+
+### --folder-origin
+
+Use local folder as origin:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky test \
+  --folder-origin /path/to/source
+```
+
+### --folder-destination
+
+Write to local folder:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky test \
+  --folder-destination /path/to/output
+```
+
+### --git-destination-url
+
+Override destination URL:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export \
+  --git-destination-url https://github.com/other/repo
+```
+
+### --read-config-from-change
+
+Read config from the migrated change:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export \
+  --read-config-from-change
+```
+
+## Output Control
+
+### --console-file-path
+
+Write console output to file:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export \
+  --console-file-path output.log
+```
+
+### -v (verbose)
+
+Increase verbosity:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export -v
+java -jar copybara.jar migrate copy.bara.sky export -vv  # More verbose
+```
+
+## Examples
+
+### Initial Sync
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export --init-history
+```
+
+### Incremental Sync
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export --ignore-noop
+```
+
+### Preview Changes
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export \
+  --folder-destination /tmp/preview
+```
+
+### Validate Config
+
+```bash
+java -jar copybara.jar validate copy.bara.sky
+```
+
+### Force Re-sync
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export \
+  --last-rev abc123 --force
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Error |
+| 2 | No changes (without --ignore-noop) |
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `COPYBARA_CONFIG` | Default config file |
+| `GIT_AUTHOR_NAME` | Git author name |
+| `GIT_AUTHOR_EMAIL` | Git author email |
+| `GIT_COMMITTER_NAME` | Git committer name |
+| `GIT_COMMITTER_EMAIL` | Git committer email |
+
+## Next Steps
+
+- [Core module reference](/copybara-docs/reference/core/)
+- [Git module reference](/copybara-docs/reference/git/)

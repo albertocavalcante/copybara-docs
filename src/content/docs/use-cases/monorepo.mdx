@@ -1,0 +1,222 @@
+---
+title: Monorepo Extraction
+description: Publishing parts of a monorepo as standalone repositories
+---
+
+# Monorepo Extraction
+
+Extract and publish packages from a monorepo as standalone repositories.
+
+## The Challenge
+
+Monorepos contain multiple packages, but users may want:
+- Individual packages as separate repos
+- Clean history for just that package
+- Independent versioning
+- Simplified dependency management
+
+## Basic Extraction
+
+```starlark
+core.workflow(
+    name = "extract-my-package",
+    origin = git.origin(
+        url = "https://github.com/company/monorepo",
+        ref = "main",
+    ),
+    destination = git.github_destination(
+        url = "https://github.com/company/my-package",
+        push = "main",
+    ),
+    origin_files = glob(["packages/my-package/**"]),
+    transformations = [
+        # Flatten to root
+        core.move("packages/my-package/", ""),
+    ],
+    authoring = authoring.pass_thru("Sync <sync@company.com>"),
+    mode = "SQUASH",
+)
+```
+
+## Multi-Package Extraction
+
+Extract multiple packages:
+
+```starlark
+def extract_package(name):
+    return core.workflow(
+        name = "extract-" + name,
+        origin = git.origin(
+            url = "https://github.com/company/monorepo",
+            ref = "main",
+        ),
+        destination = git.github_destination(
+            url = "https://github.com/company/" + name,
+            push = "main",
+        ),
+        origin_files = glob(["packages/" + name + "/**"]),
+        transformations = [
+            core.move("packages/" + name + "/", ""),
+        ],
+        authoring = authoring.pass_thru("Sync <sync@company.com>"),
+        mode = "SQUASH",
+    )
+
+# Create workflows for each package
+extract_package("core")
+extract_package("cli")
+extract_package("utils")
+```
+
+Run specific extraction:
+```bash
+java -jar copybara.jar migrate copy.bara.sky extract-core
+java -jar copybara.jar migrate copy.bara.sky extract-cli
+```
+
+## Fixing Import Paths
+
+Update internal imports:
+
+```starlark
+transformations = [
+    core.move("packages/my-package/", ""),
+
+    # Update monorepo-style imports
+    core.replace(
+        before = "@company/my-package",
+        after = "my-package",
+        paths = glob(["**/*.ts", "**/*.js"]),
+    ),
+
+    # Update workspace references
+    core.replace(
+        before = '"workspace:*"',
+        after = '"*"',
+        paths = glob(["package.json"]),
+    ),
+]
+```
+
+## With Shared Dependencies
+
+Include shared code that the package depends on:
+
+```starlark
+origin_files = glob([
+    "packages/my-package/**",
+    "packages/shared/**",  # Include shared deps
+])
+
+transformations = [
+    core.move("packages/my-package/", ""),
+    core.move("packages/shared/", "vendor/shared/"),
+
+    # Update import paths
+    core.replace(
+        before = "@company/shared",
+        after = "./vendor/shared",
+    ),
+]
+```
+
+## Preserving History
+
+Use ITERATIVE mode to preserve commit history:
+
+```starlark
+core.workflow(
+    name = "extract-with-history",
+    mode = "ITERATIVE",  # Preserve individual commits
+    origin_files = glob(["packages/my-package/**"]),
+    transformations = [
+        core.move("packages/my-package/", ""),
+    ],
+    ...
+)
+```
+
+## Package.json Updates
+
+Clean up monorepo-specific fields:
+
+```starlark
+transformations = [
+    core.move("packages/my-package/", ""),
+
+    # Remove workspace field
+    core.replace(
+        before = '"workspaces": [${content}],',
+        after = "",
+        regex_groups = {"content": "[^]]*"},
+        paths = glob(["package.json"]),
+    ),
+
+    # Update repository field
+    core.replace(
+        before = '"directory": "packages/my-package"',
+        after = "",
+        paths = glob(["package.json"]),
+    ),
+]
+```
+
+## Via Pull Request
+
+Review extractions before publishing:
+
+```starlark
+destination = git.github_pr_destination(
+    url = "https://github.com/company/my-package",
+    destination_ref = "main",
+    pr_branch = "sync/${CONTEXT_REFERENCE}",
+    title = "Sync from monorepo",
+)
+```
+
+## Complete Example
+
+```starlark
+MONOREPO = "https://github.com/company/monorepo"
+
+def extract_package(name, npm_name = None):
+    if not npm_name:
+        npm_name = name
+
+    return core.workflow(
+        name = "extract-" + name,
+        origin = git.github_origin(url = MONOREPO, ref = "main"),
+        destination = git.github_pr_destination(
+            url = "https://github.com/company/" + name,
+            destination_ref = "main",
+            pr_branch = "sync/${CONTEXT_REFERENCE}",
+        ),
+        origin_files = glob([
+            "packages/" + name + "/**",
+            "LICENSE",  # Include license
+        ]),
+        destination_files = glob(
+            include = ["**"],
+            exclude = ["README.md"],  # Keep standalone readme
+        ),
+        authoring = authoring.pass_thru("Extract Bot <bot@company.com>"),
+        transformations = [
+            core.move("packages/" + name + "/", ""),
+            core.replace(
+                before = "@company/" + npm_name,
+                after = npm_name,
+            ),
+            metadata.add_header("Extracted from: " + MONOREPO),
+        ],
+        mode = "SQUASH",
+    )
+
+extract_package("core", "company-core")
+extract_package("cli", "company-cli")
+extract_package("utils")
+```
+
+## Next Steps
+
+- [Documentation sync](/copybara-docs/use-cases/docs-sync/)
+- [GitHub Actions](/copybara-docs/cicd/github-actions/)

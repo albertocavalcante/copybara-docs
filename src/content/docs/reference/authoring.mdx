@@ -1,0 +1,86 @@
+---
+title: Authoring Module Reference
+description: Reference for authoring.* functions
+---
+
+# Authoring Module Reference
+
+The `authoring` module controls how commit author information is handled.
+
+## Functions
+
+### authoring.pass_thru
+
+Preserve original author when possible:
+
+```starlark
+authoring.pass_thru(
+    default = "Bot <bot@example.com>",  # Fallback author
+)
+```
+
+### authoring.overwrite
+
+Replace all authors:
+
+```starlark
+authoring.overwrite(
+    "Bot <bot@example.com>",            # Author for all commits
+)
+```
+
+### authoring.allowed
+
+Allow specific authors, default for others:
+
+```starlark
+authoring.allowed(
+    default = "Bot <bot@example.com>",  # Fallback author
+    allowlist = [                       # Preserved authors
+        "alice@example.com",
+        "bob@example.com",
+    ],
+)
+```
+
+## Author Format
+
+Authors use Git standard format:
+
+```
+Name <email@example.com>
+```
+
+## Examples
+
+### Open Source Export
+
+```starlark
+authoring = authoring.pass_thru(
+    default = "Open Source Bot <oss@company.com>",
+)
+```
+
+### Bot-Only Commits
+
+```starlark
+authoring = authoring.overwrite(
+    "Sync Bot <sync@company.com>",
+)
+```
+
+### Allow Internal Team
+
+```starlark
+authoring = authoring.allowed(
+    default = "External <external@company.com>",
+    allowlist = [
+        "*@company.com",
+    ],
+)
+```
+
+## Next Steps
+
+- [Glob reference](/copybara-docs/reference/glob/)
+- [Metadata transformations](/copybara-docs/transformations/metadata/)

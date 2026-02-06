@@ -1,0 +1,263 @@
+---
+title: Glob Patterns
+description: File pattern matching in Copybara
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Glob Patterns
+
+Globs are used throughout Copybara to match files and directories.
+
+## Basic Syntax
+
+```starlark
+glob(["pattern1", "pattern2"])
+```
+
+## Pattern Characters
+
+| Pattern | Matches |
+|---------|---------|
+| `*` | Any characters except `/` |
+| `**` | Any characters including `/` (recursive) |
+| `?` | Single character |
+| `[abc]` | Character class |
+| `[!abc]` | Negated character class |
+
+## Examples
+
+### Match All Files
+
+```starlark
+glob(["**"])
+```
+
+### Match by Extension
+
+```starlark
+# Single extension
+glob(["**/*.py"])
+
+# Multiple extensions
+glob(["**/*.py", "**/*.pyi"])
+
+# Or with braces
+glob(["**/*.{py,pyi}"])
+```
+
+### Match Directory
+
+```starlark
+# All files in src/
+glob(["src/**"])
+
+# Only immediate children
+glob(["src/*"])
+
+# Specific subdirectory
+glob(["src/lib/**"])
+```
+
+### Match Specific Files
+
+```starlark
+# Exact file
+glob(["README.md"])
+
+# Files in any directory
+glob(["**/README.md"])
+
+# File pattern
+glob(["**/test_*.py"])
+```
+
+## Include and Exclude
+
+```starlark
+glob(
+    include = ["**"],
+    exclude = ["**/internal/**"],
+)
+```
+
+### Common Patterns
+
+```starlark
+# Everything except tests
+glob(
+    include = ["**"],
+    exclude = ["**/*_test.go", "**/test_*.go"],
+)
+
+# Source files only
+glob(
+    include = ["src/**"],
+    exclude = [
+        "**/internal/**",
+        "**/testdata/**",
+        "**/*.test.ts",
+    ],
+)
+
+# Documentation
+glob(
+    include = ["docs/**", "*.md"],
+    exclude = ["docs/internal/**"],
+)
+```
+
+## Usage Contexts
+
+### origin_files
+
+What to read from origin:
+
+```starlark
+core.workflow(
+    origin_files = glob(
+        include = ["src/**", "docs/**"],
+        exclude = ["**/internal/**"],
+    ),
+    ...
+)
+```
+
+### destination_files
+
+What Copybara can modify:
+
+```starlark
+core.workflow(
+    destination_files = glob(
+        include = ["**"],
+        exclude = ["README.md", ".github/**"],
+    ),
+    ...
+)
+```
+
+### Transformation Paths
+
+Filter where transforms apply:
+
+```starlark
+core.replace(
+    before = "old",
+    after = "new",
+    paths = glob(["**/*.md"]),
+)
+
+core.remove(glob(["**/*.bak"]))
+```
+
+## Precedence
+
+Exclude patterns take precedence over include:
+
+```starlark
+glob(
+    include = ["src/**"],           # Include all of src/
+    exclude = ["src/internal/**"],  # But not internal/
+)
+# Result: src/* except src/internal/*
+```
+
+## Order Independence
+
+Include patterns are combined (union):
+
+```starlark
+# These are equivalent:
+glob(["src/**", "docs/**"])
+glob(include = ["src/**", "docs/**"])
+```
+
+Exclude patterns are also combined:
+
+```starlark
+glob(
+    include = ["**"],
+    exclude = ["*.tmp", "*.bak"],  # Excludes both
+)
+```
+
+## Special Cases
+
+### Root Files Only
+
+```starlark
+glob(["*"])  # Only files in root
+```
+
+### Specific Depth
+
+```starlark
+glob(["src/*"])      # One level deep
+glob(["src/*/*"])    # Two levels deep
+glob(["src/**"])     # Any depth
+```
+
+### Hidden Files
+
+```starlark
+glob(["**/.*"])     # Hidden files
+glob(["**/.git/**"])  # Git directory
+```
+
+## Common Exclusions
+
+```starlark
+# Build artifacts
+exclude = [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/__pycache__/**",
+    "**/target/**",
+]
+
+# IDE files
+exclude = [
+    "**/.idea/**",
+    "**/.vscode/**",
+    "**/*.iml",
+]
+
+# Internal content
+exclude = [
+    "**/internal/**",
+    "**/*.internal.*",
+    "**/INTERNAL_*",
+]
+
+# Tests
+exclude = [
+    "**/*_test.go",
+    "**/test_*.py",
+    "**/*.test.ts",
+    "**/testdata/**",
+]
+```
+
+## Debugging Globs
+
+Test which files match:
+
+```bash
+# Use folder destination to see results
+java -jar copybara.jar migrate copy.bara.sky workflow \
+  --folder-destination /tmp/output
+
+# List the files
+find /tmp/output -type f
+```
+
+<Aside type="tip">
+When unsure, test with a narrow include pattern first, then expand.
+</Aside>
+
+## Next Steps
+
+- [Authoring configuration](/copybara-docs/config/authoring/)
+- [Transformations](/copybara-docs/transformations/overview/)

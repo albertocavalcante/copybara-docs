@@ -1,0 +1,253 @@
+---
+title: Git Destinations
+description: Writing code to Git repositories
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Git Destinations
+
+Git destinations define where Copybara writes transformed code.
+
+## git.destination
+
+Direct push to a Git repository:
+
+```starlark
+destination = git.destination(
+    url = "https://github.com/org/repo.git",
+    fetch = "main",
+    push = "main",
+)
+```
+
+### Parameters
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `url` | Yes | Repository URL (HTTPS or SSH) |
+| `push` | Yes | Branch to push to |
+| `fetch` | No | Branch to fetch (default: same as `push`) |
+| `tag_name` | No | Create a tag with this name |
+| `tag_msg` | No | Tag message |
+| `skip_push` | No | Skip the push (for testing) |
+
+### Examples
+
+```starlark
+# Basic push to main
+destination = git.destination(
+    url = "https://github.com/org/repo",
+    push = "main",
+)
+
+# Push to different branch
+destination = git.destination(
+    url = "https://github.com/org/repo",
+    fetch = "main",
+    push = "sync/latest",
+)
+
+# Create a tag
+destination = git.destination(
+    url = "https://github.com/org/repo",
+    push = "main",
+    tag_name = "v${VERSION}",
+    tag_msg = "Release ${VERSION}",
+)
+
+# SSH URL
+destination = git.destination(
+    url = "git@github.com:org/repo.git",
+    push = "main",
+)
+```
+
+## git.github_destination
+
+GitHub-specific destination with API integration:
+
+```starlark
+destination = git.github_destination(
+    url = "https://github.com/org/repo",
+    push = "main",
+)
+```
+
+### Additional Features
+
+- Automatic CODEOWNERS validation
+- GitHub API integration for metadata
+- Better error messages for GitHub-specific issues
+
+```starlark
+destination = git.github_destination(
+    url = "https://github.com/org/repo",
+    push = "main",
+    skip_push = False,
+)
+```
+
+## git.github_pr_destination
+
+Create pull requests instead of pushing directly:
+
+```starlark
+destination = git.github_pr_destination(
+    url = "https://github.com/org/repo",
+    destination_ref = "main",
+    pr_branch = "copybara/sync-${CONTEXT_REFERENCE}",
+)
+```
+
+### Parameters
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `url` | Yes | Repository URL |
+| `destination_ref` | Yes | Target branch for the PR |
+| `pr_branch` | No | Branch name for the PR |
+| `title` | No | PR title |
+| `body` | No | PR description |
+| `draft` | No | Create as draft PR |
+| `update_description` | No | Update PR description on re-run |
+| `assignees` | No | List of assignees |
+| `labels` | No | List of labels |
+
+### Examples
+
+```starlark
+# Basic PR
+destination = git.github_pr_destination(
+    url = "https://github.com/org/repo",
+    destination_ref = "main",
+)
+
+# Full configuration
+destination = git.github_pr_destination(
+    url = "https://github.com/org/repo",
+    destination_ref = "main",
+    pr_branch = "copybara/sync-${CONTEXT_REFERENCE}",
+    title = "Sync from internal",
+    body = """\
+Automated sync from internal repository.
+
+Please review and merge.
+""",
+    draft = False,
+    update_description = True,
+    assignees = ["reviewer1"],
+    labels = ["automated", "sync"],
+)
+```
+
+<Aside type="tip">
+Use `${CONTEXT_REFERENCE}` in `pr_branch` to create unique branch names based on the source commit.
+</Aside>
+
+## git.gerrit_destination
+
+Create Gerrit change lists:
+
+```starlark
+destination = git.gerrit_destination(
+    url = "https://gerrit.example.com/repo",
+    fetch = "main",
+    push_to_refs_for = "main",
+)
+```
+
+### Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `url` | Gerrit repository URL |
+| `fetch` | Branch to fetch |
+| `push_to_refs_for` | Target branch for the CL |
+| `submit` | Auto-submit after creating |
+| `notify` | Notification setting |
+
+```starlark
+destination = git.gerrit_destination(
+    url = "https://gerrit.example.com/repo",
+    fetch = "main",
+    push_to_refs_for = "main",
+    notify = "OWNER",  # Notify owner only
+)
+```
+
+## Fetch vs Push
+
+The `fetch` and `push` parameters serve different purposes:
+
+- **fetch**: The branch to read current state from (for merging)
+- **push**: The branch to push changes to
+
+```starlark
+# Same branch (common)
+destination = git.destination(
+    url = "...",
+    push = "main",
+)  # fetch defaults to push
+
+# Different branches
+destination = git.destination(
+    url = "...",
+    fetch = "main",      # Read from main
+    push = "sync/main",  # Push to sync/main
+)
+```
+
+## Skipping Push
+
+For testing without actually pushing:
+
+```starlark
+destination = git.destination(
+    url = "...",
+    push = "main",
+    skip_push = True,  # Don't actually push
+)
+```
+
+<Aside type="note">
+Use `skip_push = True` during development to see what would be pushed without modifying the destination.
+</Aside>
+
+## Force Push Behavior
+
+Copybara handles push conflicts:
+
+1. **Normal push**: Fast-forward only
+2. **With `--force`**: Force push (destructive!)
+
+```bash
+# Normal (safe)
+java -jar copybara.jar migrate copy.bara.sky
+
+# Force (destructive)
+java -jar copybara.jar migrate copy.bara.sky --force
+```
+
+<Aside type="caution">
+Use `--force` carefully - it will overwrite destination history.
+</Aside>
+
+## Authentication
+
+Destinations require write access:
+
+```bash
+# HTTPS with token
+git config --global credential.helper store
+echo "https://x-access-token:${TOKEN}@github.com" > ~/.git-credentials
+
+# SSH
+ssh-add ~/.ssh/id_ed25519
+```
+
+## Next Steps
+
+- [GitHub integration details](/copybara-docs/endpoints/github/)
+- [CHANGE_REQUEST mode](/copybara-docs/workflows/change-request/)
+- [Authentication guide](/copybara-docs/cicd/authentication/)

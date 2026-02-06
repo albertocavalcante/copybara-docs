@@ -1,0 +1,357 @@
+---
+title: GitHub Actions
+description: Running Copybara in GitHub Actions workflows
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# GitHub Actions
+
+Run Copybara automatically using GitHub Actions.
+
+## Basic Workflow
+
+```yaml title=".github/workflows/copybara.yml"
+name: Copybara Sync
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for Copybara
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Download Copybara
+        run: |
+          curl -fsSL -o copybara.jar \
+            https://github.com/google/copybara/releases/download/v20251215/copybara_deploy.jar
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global credential.helper store
+          echo "https://x-access-token:${{ secrets.COPYBARA_TOKEN }}@github.com" > ~/.git-credentials
+
+      - name: Run Copybara
+        run: java -jar copybara.jar migrate copy.bara.sky workflow_name --ignore-noop
+```
+
+## Trigger Options
+
+### On Push
+
+```yaml
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'  # Only when source changes
+```
+
+### Scheduled
+
+```yaml
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight
+```
+
+### Manual
+
+```yaml
+on:
+  workflow_dispatch:
+    inputs:
+      init_history:
+        description: 'Initialize full history'
+        type: boolean
+        default: false
+```
+
+### On PR Merge
+
+```yaml
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  sync:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      # ...
+```
+
+## Caching Copybara JAR
+
+Speed up workflows by caching:
+
+```yaml
+- name: Cache Copybara
+  id: cache-copybara
+  uses: actions/cache@v4
+  with:
+    path: copybara.jar
+    key: copybara-v20251215
+
+- name: Download Copybara
+  if: steps.cache-copybara.outputs.cache-hit != 'true'
+  run: |
+    curl -fsSL -o copybara.jar \
+      https://github.com/google/copybara/releases/download/v20251215/copybara_deploy.jar
+```
+
+## Authentication Methods
+
+<Tabs>
+<TabItem label="Personal Access Token">
+
+```yaml
+- name: Configure Git
+  run: |
+    git config --global credential.helper store
+    echo "https://x-access-token:${{ secrets.COPYBARA_TOKEN }}@github.com" > ~/.git-credentials
+```
+
+Required token permissions:
+- `repo` (full control) - or fine-grained with Contents + Pull requests
+
+</TabItem>
+<TabItem label="SSH Key">
+
+```yaml
+- name: Configure SSH
+  run: |
+    mkdir -p ~/.ssh
+    echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+    chmod 600 ~/.ssh/id_ed25519
+    ssh-keyscan github.com >> ~/.ssh/known_hosts
+```
+
+Use SSH URL in config:
+```starlark
+destination = git.destination(
+    url = "git@github.com:org/repo.git",
+    ...
+)
+```
+
+</TabItem>
+<TabItem label="GitHub App">
+
+```yaml
+- name: Generate token
+  id: app-token
+  uses: actions/create-github-app-token@v1
+  with:
+    app-id: ${{ secrets.APP_ID }}
+    private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+- name: Configure Git
+  run: |
+    git config --global credential.helper store
+    echo "https://x-access-token:${{ steps.app-token.outputs.token }}@github.com" > ~/.git-credentials
+```
+
+</TabItem>
+</Tabs>
+
+## First-Time Sync
+
+Initial sync with full history:
+
+```yaml
+- name: Run Copybara (initial)
+  if: github.event.inputs.init_history == 'true'
+  run: java -jar copybara.jar migrate copy.bara.sky workflow --init-history
+
+- name: Run Copybara (incremental)
+  if: github.event.inputs.init_history != 'true'
+  run: java -jar copybara.jar migrate copy.bara.sky workflow --ignore-noop
+```
+
+## Error Handling
+
+Handle common scenarios:
+
+```yaml
+- name: Run Copybara
+  id: copybara
+  continue-on-error: true
+  run: |
+    java -jar copybara.jar migrate copy.bara.sky workflow --ignore-noop 2>&1 | tee copybara.log
+    exit ${PIPESTATUS[0]}
+
+- name: Check for actual errors
+  if: steps.copybara.outcome == 'failure'
+  run: |
+    if grep -q "No changes to migrate" copybara.log; then
+      echo "No changes - this is expected"
+      exit 0
+    fi
+    echo "Copybara failed with real error"
+    cat copybara.log
+    exit 1
+```
+
+## Reusable Action
+
+Create a reusable action:
+
+```yaml title=".github/actions/copybara/action.yml"
+name: Run Copybara
+description: Run Copybara to sync repositories
+
+inputs:
+  config:
+    description: Config file path
+    default: copy.bara.sky
+  workflow:
+    description: Workflow name
+    required: true
+  token:
+    description: GitHub token
+    required: true
+  init-history:
+    description: Initialize full history
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '21'
+
+    - name: Cache Copybara
+      uses: actions/cache@v4
+      with:
+        path: copybara.jar
+        key: copybara-v20251215
+
+    - name: Download Copybara
+      shell: bash
+      run: |
+        if [ ! -f copybara.jar ]; then
+          curl -fsSL -o copybara.jar \
+            https://github.com/google/copybara/releases/download/v20251215/copybara_deploy.jar
+        fi
+
+    - name: Configure Git
+      shell: bash
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git config --global credential.helper store
+        echo "https://x-access-token:${{ inputs.token }}@github.com" > ~/.git-credentials
+
+    - name: Run Copybara
+      shell: bash
+      run: |
+        FLAGS="--ignore-noop"
+        if [ "${{ inputs.init-history }}" = "true" ]; then
+          FLAGS="--init-history"
+        fi
+        java -jar copybara.jar migrate ${{ inputs.config }} ${{ inputs.workflow }} $FLAGS
+```
+
+Use it:
+
+```yaml
+- uses: ./.github/actions/copybara
+  with:
+    workflow: export
+    token: ${{ secrets.COPYBARA_TOKEN }}
+```
+
+## Complete Example
+
+```yaml title=".github/workflows/sync.yml"
+name: Sync to External
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      init_history:
+        description: 'Initialize full history (first-time sync)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: copybara-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Cache Copybara
+        uses: actions/cache@v4
+        with:
+          path: copybara.jar
+          key: copybara-v20251215
+
+      - name: Download Copybara
+        run: |
+          if [ ! -f copybara.jar ]; then
+            curl -fsSL -o copybara.jar \
+              https://github.com/google/copybara/releases/download/v20251215/copybara_deploy.jar
+          fi
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global credential.helper store
+          echo "https://x-access-token:${{ secrets.COPYBARA_TOKEN }}@github.com" > ~/.git-credentials
+
+      - name: Run Copybara
+        run: |
+          FLAGS="--ignore-noop"
+          if [ "${{ github.event.inputs.init_history }}" = "true" ]; then
+            FLAGS="--init-history"
+          fi
+          java -jar copybara.jar migrate copy.bara.sky export $FLAGS
+```
+
+## Next Steps
+
+- [Authentication guide](/copybara-docs/cicd/authentication/)
+- [Automation patterns](/copybara-docs/cicd/automation/)

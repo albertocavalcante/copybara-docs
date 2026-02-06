@@ -1,0 +1,281 @@
+---
+title: Authentication
+description: Configuring authentication for Copybara
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Authentication
+
+Copybara needs authentication to read from origins and write to destinations.
+
+## Authentication Methods
+
+| Method | Use Case | Security |
+|--------|----------|----------|
+| Personal Access Token (Classic) | Quick setup | Medium |
+| Fine-Grained Token | Scoped access | High |
+| SSH Key | Traditional Git auth | Medium |
+| Deploy Key | Single repo write | High |
+| GitHub App | Enterprise automation | High |
+
+## Personal Access Token (Classic)
+
+<Tabs>
+<TabItem label="Setup">
+
+1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
+2. Click "Generate new token (classic)"
+3. Select scopes:
+   - `repo` (full repository access)
+   - `workflow` (if modifying workflows)
+4. Generate and copy the token
+
+</TabItem>
+<TabItem label="Usage">
+
+```bash
+# Configure Git credentials
+git config --global credential.helper store
+echo "https://x-access-token:${TOKEN}@github.com" > ~/.git-credentials
+```
+
+In GitHub Actions:
+```yaml
+- name: Configure Git
+  run: |
+    git config --global credential.helper store
+    echo "https://x-access-token:${{ secrets.PAT }}@github.com" > ~/.git-credentials
+```
+
+</TabItem>
+</Tabs>
+
+## Fine-Grained Token (Recommended)
+
+More secure than classic tokens:
+
+<Tabs>
+<TabItem label="Setup">
+
+1. Go to GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens
+2. Click "Generate new token"
+3. Set expiration
+4. Select repository access: "Only select repositories"
+5. Choose the destination repository
+6. Set permissions:
+   - **Contents**: Read and write
+   - **Pull requests**: Read and write
+   - **Metadata**: Read
+
+</TabItem>
+<TabItem label="Usage">
+
+Same as classic token:
+
+```bash
+git config --global credential.helper store
+echo "https://x-access-token:${FINE_GRAINED_TOKEN}@github.com" > ~/.git-credentials
+```
+
+</TabItem>
+</Tabs>
+
+<Aside type="tip">
+Fine-grained tokens can be scoped to specific repositories, limiting blast radius if compromised.
+</Aside>
+
+## SSH Key
+
+Traditional Git authentication:
+
+<Tabs>
+<TabItem label="Setup">
+
+1. Generate SSH key:
+   ```bash
+   ssh-keygen -t ed25519 -C "copybara@example.com"
+   ```
+
+2. Add public key to GitHub:
+   - Settings → SSH and GPG keys → New SSH key
+   - Or repository Settings → Deploy keys (for single repo)
+
+</TabItem>
+<TabItem label="Usage">
+
+```bash
+# Add private key to agent
+ssh-add ~/.ssh/id_ed25519
+
+# Or specify key file
+GIT_SSH_COMMAND="ssh -i ~/.ssh/copybara_key" java -jar copybara.jar ...
+```
+
+In GitHub Actions:
+```yaml
+- name: Configure SSH
+  run: |
+    mkdir -p ~/.ssh
+    echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+    chmod 600 ~/.ssh/id_ed25519
+    ssh-keyscan github.com >> ~/.ssh/known_hosts
+```
+
+</TabItem>
+</Tabs>
+
+Use SSH URL in config:
+```starlark
+destination = git.destination(
+    url = "git@github.com:org/repo.git",
+    push = "main",
+)
+```
+
+## Deploy Key
+
+SSH key scoped to a single repository:
+
+<Tabs>
+<TabItem label="Setup">
+
+1. Generate SSH key:
+   ```bash
+   ssh-keygen -t ed25519 -C "copybara-deploy" -f copybara_deploy
+   ```
+
+2. Add to repository:
+   - Repository Settings → Deploy keys
+   - Add deploy key
+   - Enable "Allow write access"
+
+</TabItem>
+<TabItem label="Usage">
+
+Same as SSH key:
+```yaml
+- name: Configure Deploy Key
+  run: |
+    mkdir -p ~/.ssh
+    echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+    chmod 600 ~/.ssh/id_ed25519
+    ssh-keyscan github.com >> ~/.ssh/known_hosts
+```
+
+</TabItem>
+</Tabs>
+
+<Aside type="note">
+Deploy keys only work for one repository. Use a GitHub App or PAT for multi-repo workflows.
+</Aside>
+
+## GitHub App
+
+Best for enterprise and multi-repo automation:
+
+<Tabs>
+<TabItem label="Setup">
+
+1. Create GitHub App:
+   - Organization Settings → Developer settings → GitHub Apps
+   - New GitHub App
+   - Set permissions:
+     - Contents: Read and write
+     - Pull requests: Read and write
+     - Metadata: Read
+   - Install on required repositories
+
+2. Note the App ID and generate a private key
+
+</TabItem>
+<TabItem label="Usage">
+
+```yaml
+- name: Generate token
+  id: app-token
+  uses: actions/create-github-app-token@v1
+  with:
+    app-id: ${{ secrets.APP_ID }}
+    private-key: ${{ secrets.APP_PRIVATE_KEY }}
+    repositories: destination-repo
+
+- name: Configure Git
+  run: |
+    git config --global credential.helper store
+    echo "https://x-access-token:${{ steps.app-token.outputs.token }}@github.com" > ~/.git-credentials
+```
+
+</TabItem>
+</Tabs>
+
+## Gerrit Authentication
+
+For Gerrit destinations:
+
+```bash
+# HTTP password
+git config --global credential.helper store
+echo "https://username:http-password@gerrit.example.com" > ~/.git-credentials
+```
+
+Generate HTTP password in Gerrit: Settings → HTTP Credentials
+
+## Multi-Repository Access
+
+For workflows accessing multiple repositories:
+
+```yaml
+# Use a PAT with access to all repos
+- name: Configure Git
+  run: |
+    echo "https://x-access-token:${{ secrets.MULTI_REPO_PAT }}@github.com" > ~/.git-credentials
+```
+
+Or use separate credentials:
+```yaml
+- name: Configure credentials
+  run: |
+    cat > ~/.git-credentials << 'EOF'
+    https://x-access-token:${{ secrets.ORIGIN_TOKEN }}@github.com
+    https://x-access-token:${{ secrets.DEST_TOKEN }}@github.com
+    EOF
+```
+
+## Security Best Practices
+
+1. **Use fine-grained tokens** when possible
+2. **Limit scope** to only required repositories
+3. **Set expiration** on tokens
+4. **Rotate regularly** (especially after team changes)
+5. **Use secrets** in CI/CD (never hardcode)
+6. **Audit access** periodically
+
+## Troubleshooting
+
+### "Authentication failed"
+
+```bash
+# Test credentials
+git ls-remote https://github.com/org/repo
+
+# Check configured credentials
+cat ~/.git-credentials
+```
+
+### "Permission denied"
+
+- Verify token has required scopes
+- Check repository access settings
+- For fine-grained tokens, verify repository is selected
+
+### "Host key verification failed"
+
+```bash
+ssh-keyscan github.com >> ~/.ssh/known_hosts
+```
+
+## Next Steps
+
+- [GitHub Actions setup](/copybara-docs/cicd/github-actions/)
+- [Automation patterns](/copybara-docs/cicd/automation/)

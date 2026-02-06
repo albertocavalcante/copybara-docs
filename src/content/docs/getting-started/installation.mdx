@@ -1,0 +1,150 @@
+---
+title: Installation
+description: How to install and run Copybara
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Installing Copybara
+
+Copybara can be run in several ways: as a pre-built JAR, built from source, or via Docker.
+
+## Option 1: Download Pre-built JAR (Recommended)
+
+The easiest way to run Copybara is to download a pre-built release.
+
+<Steps>
+1. **Download the latest release**
+   ```bash
+   curl -fsSL -o copybara_deploy.jar \
+     https://github.com/google/copybara/releases/download/v20251215/copybara_deploy.jar
+   ```
+
+2. **Verify Java is installed** (Java 11+ required)
+   ```bash
+   java -version
+   ```
+
+3. **Run Copybara**
+   ```bash
+   java -jar copybara_deploy.jar --help
+   ```
+</Steps>
+
+<Aside type="tip">
+Create an alias for convenience:
+```bash
+alias copybara='java -jar /path/to/copybara_deploy.jar'
+```
+</Aside>
+
+## Option 2: Build from Source
+
+For the latest features or to contribute:
+
+<Steps>
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/google/copybara.git
+   cd copybara
+   ```
+
+2. **Build with Bazel**
+   ```bash
+   bazel build //java/com/google/copybara:copybara_deploy.jar
+   ```
+
+3. **Run the built JAR**
+   ```bash
+   java -jar bazel-bin/java/com/google/copybara/copybara_deploy.jar --help
+   ```
+</Steps>
+
+### Build Requirements
+
+- **Bazel**: 6.0+ (or Bazelisk)
+- **Java**: JDK 11+
+- **Git**: For fetching dependencies
+
+## Option 3: Docker
+
+Run Copybara in a container:
+
+```bash
+docker run -v $(pwd):/workspace \
+  gcr.io/copybara-public/copybara:latest \
+  copybara /workspace/copy.bara.sky workflow_name
+```
+
+<Aside type="note">
+The official Docker image may lag behind releases. For the latest version, consider building your own image.
+</Aside>
+
+### Custom Docker Image
+
+```dockerfile title="Dockerfile"
+FROM eclipse-temurin:21-jdk
+
+# Download Copybara
+RUN curl -fsSL -o /opt/copybara_deploy.jar \
+    https://github.com/google/copybara/releases/download/v20251215/copybara_deploy.jar
+
+# Set up entrypoint
+ENTRYPOINT ["java", "-jar", "/opt/copybara_deploy.jar"]
+```
+
+Build and run:
+```bash
+docker build -t copybara .
+docker run -v $(pwd):/workspace copybara /workspace/copy.bara.sky
+```
+
+## Verify Installation
+
+Create a simple config to test:
+
+```starlark title="test.bara.sky"
+# Simple validation config
+core.workflow(
+    name = "test",
+    origin = folder.origin(),
+    destination = folder.destination(),
+    authoring = authoring.overwrite("Test <test@example.com>"),
+)
+```
+
+Validate the config:
+
+```bash
+java -jar copybara_deploy.jar validate test.bara.sky
+```
+
+Expected output:
+```
+Configuration validated successfully.
+```
+
+## IDE Support
+
+### IntelliJ IDEA
+
+1. Install the [Starlark plugin](https://plugins.jetbrains.com/plugin/14918-starlark)
+2. Associate `.bara.sky` files with Starlark
+
+### VS Code
+
+1. Install [Starlark extension](https://marketplace.visualstudio.com/items?itemName=ASchmidt.starlark)
+2. Add to settings:
+   ```json
+   {
+     "files.associations": {
+       "*.bara.sky": "starlark"
+     }
+   }
+   ```
+
+## Next Steps
+
+- [Quick Start tutorial](/copybara-docs/getting-started/quick-start/)
+- [Core concepts](/copybara-docs/getting-started/concepts/)
+- [Workflow modes](/copybara-docs/workflows/overview/)

@@ -1,0 +1,267 @@
+---
+title: Text Replacement
+description: Finding and replacing text in files
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Text Replacement
+
+Use `core.replace` for find-and-replace operations on file contents.
+
+## core.replace
+
+Basic text replacement:
+
+```starlark
+core.replace(
+    before = "old_text",
+    after = "new_text",
+)
+```
+
+### Simple Replacement
+
+```starlark
+# Replace all occurrences
+core.replace("internal.corp.com", "api.example.com")
+
+# Equivalent explicit form
+core.replace(
+    before = "internal.corp.com",
+    after = "api.example.com",
+)
+```
+
+### Path Filtering
+
+```starlark
+# Only replace in specific files
+core.replace(
+    before = "internal.corp.com",
+    after = "api.example.com",
+    paths = glob(["**/*.md", "**/*.txt"]),
+)
+```
+
+## Regex Replacement
+
+Use `regex_groups` for pattern matching:
+
+```starlark
+core.replace(
+    before = "version = ${ver}",
+    after = "version = ${ver}-public",
+    regex_groups = {"ver": "[0-9]+\\.[0-9]+\\.[0-9]+"},
+)
+```
+
+### Regex Groups
+
+Groups are defined as `${name}` in `before`/`after` and regex patterns in `regex_groups`:
+
+```starlark
+# Capture and reuse groups
+core.replace(
+    before = "TODO(${user}): ${message}",
+    after = "TODO: ${message}",  # Remove user, keep message
+    regex_groups = {
+        "user": "[a-z]+",
+        "message": ".*",
+    },
+)
+```
+
+### Common Patterns
+
+```starlark
+# Version numbers
+regex_groups = {"version": "[0-9]+\\.[0-9]+\\.[0-9]+"}
+
+# Usernames
+regex_groups = {"user": "[a-zA-Z_][a-zA-Z0-9_]*"}
+
+# URLs
+regex_groups = {"url": "https?://[^\\s]+"}
+
+# File paths
+regex_groups = {"path": "[a-zA-Z0-9_/.-]+"}
+```
+
+## Multiline Replacement
+
+For patterns spanning multiple lines:
+
+```starlark
+core.replace(
+    before = "// BEGIN INTERNAL\n${content}// END INTERNAL\n",
+    after = "",
+    regex_groups = {"content": "[\\s\\S]*?"},  # Non-greedy match
+    multiline = True,
+)
+```
+
+<Aside type="caution">
+Use `[\\s\\S]*?` for non-greedy multiline matching. Plain `.*` doesn't match newlines.
+</Aside>
+
+## Removing Content
+
+Replace with empty string to remove:
+
+```starlark
+# Remove single-line comments
+core.replace(
+    before = "// INTERNAL: ${content}\n",
+    after = "",
+    regex_groups = {"content": ".*"},
+)
+
+# Remove block comments
+core.replace(
+    before = "/* INTERNAL\n${content}*/\n",
+    after = "",
+    regex_groups = {"content": "[\\s\\S]*?"},
+    multiline = True,
+)
+```
+
+## core.filter_replace
+
+For complex replacements with mapping:
+
+```starlark
+core.filter_replace(
+    regex = "TODO\\(([a-z]+)\\)",
+    mapping = {
+        "alice": "team-frontend",
+        "bob": "team-backend",
+    },
+)
+# TODO(alice) → TODO(team-frontend)
+# TODO(bob) → TODO(team-backend)
+```
+
+### With Default
+
+```starlark
+core.filter_replace(
+    regex = "@([a-z]+)\\.internal",
+    mapping = {
+        "alice": "alice@example.com",
+        "bob": "bob@example.com",
+    },
+    default = "support@example.com",  # For unmatched users
+)
+```
+
+## Replacement Order
+
+Replacements are independent; order usually doesn't matter unless patterns overlap:
+
+```starlark
+transformations = [
+    # These are independent, order doesn't matter
+    core.replace("foo", "bar"),
+    core.replace("baz", "qux"),
+]
+
+transformations = [
+    # These overlap, order matters!
+    core.replace("foobar", "special"),  # First: specific
+    core.replace("foo", "bar"),         # Then: general
+]
+```
+
+## Common Use Cases
+
+### Replace URLs
+
+```starlark
+core.replace(
+    before = "https://internal.corp.com",
+    after = "https://api.example.com",
+)
+```
+
+### Replace Import Paths
+
+```starlark
+core.replace(
+    before = "@internal/",
+    after = "@public/",
+    paths = glob(["**/*.ts", "**/*.js"]),
+)
+```
+
+### Remove Internal Comments
+
+```starlark
+core.replace(
+    before = "# INTERNAL: ${comment}\n",
+    after = "",
+    regex_groups = {"comment": ".*"},
+)
+```
+
+### Update Package Names
+
+```starlark
+core.replace(
+    before = "com.internal.${pkg}",
+    after = "com.public.${pkg}",
+    regex_groups = {"pkg": "[a-z.]+"},
+    paths = glob(["**/*.java"]),
+)
+```
+
+### Replace in Specific File
+
+```starlark
+core.replace(
+    before = '"version": "${ver}"',
+    after = '"version": "${ver}-public"',
+    regex_groups = {"ver": "[0-9.]+"},
+    paths = glob(["package.json"]),
+)
+```
+
+## Escaping
+
+Special regex characters need escaping:
+
+```starlark
+# Match literal dots
+core.replace(
+    before = "example\\.com",
+    after = "example.org",
+)
+
+# Match literal braces
+core.replace(
+    before = "\\{\\{template\\}\\}",
+    after = "{{new_template}}",
+)
+```
+
+<Aside type="note">
+In Starlark strings, backslashes need double escaping: `\\.` becomes `\\.` in the regex.
+</Aside>
+
+## Debugging
+
+Test replacements locally:
+
+```bash
+# Use folder destination to preview
+java -jar copybara.jar migrate copy.bara.sky workflow \
+  --folder-destination /tmp/output
+
+# Check specific files
+diff original/file.txt /tmp/output/file.txt
+```
+
+## Next Steps
+
+- [Filtering & verification](/copybara-docs/transformations/filter/)
+- [Metadata transformations](/copybara-docs/transformations/metadata/)

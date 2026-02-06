@@ -1,0 +1,212 @@
+---
+title: Transformations Overview
+description: Modifying code during synchronization
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Transformations
+
+Transformations modify code as it moves from origin to destination. They're the core of what makes Copybara powerful.
+
+## How Transformations Work
+
+```
+Origin Files → [Transform 1] → [Transform 2] → [Transform N] → Destination Files
+```
+
+Transformations are applied in order, each receiving the output of the previous one.
+
+```starlark
+transformations = [
+    core.move("src/", "lib/"),         # First: restructure
+    core.replace("old", "new"),        # Then: replace text
+    core.verify_match("SECRET", ...),  # Finally: verify
+]
+```
+
+## Transformation Types
+
+| Category | Transformations |
+|----------|-----------------|
+| **File operations** | `core.move`, `core.copy`, `core.remove` |
+| **Text replacement** | `core.replace`, `core.filter_replace` |
+| **Verification** | `core.verify_match` |
+| **Metadata** | `metadata.squash_notes`, `metadata.add_header`, etc. |
+| **Custom** | `core.transform` with reversal |
+
+## Quick Reference
+
+### Moving Files
+
+```starlark
+# Move directory
+core.move("src/", "lib/")
+
+# Move to root
+core.move("project/src/", "")
+
+# Move single file
+core.move("old-name.txt", "new-name.txt")
+```
+
+### Replacing Text
+
+```starlark
+# Simple replacement
+core.replace("old_text", "new_text")
+
+# With regex
+core.replace(
+    before = "version = ${ver}",
+    after = "version = ${ver}-public",
+    regex_groups = {"ver": "[0-9]+\\.[0-9]+"},
+)
+```
+
+### Filtering Files
+
+```starlark
+# Remove files
+core.remove(glob(["**/internal/**"]))
+
+# Remove matching content
+core.replace(
+    before = "// INTERNAL: ${content}\n",
+    after = "",
+    regex_groups = {"content": ".*"},
+)
+```
+
+### Verification
+
+```starlark
+# Fail if pattern exists
+core.verify_match(
+    regex = "API_KEY|SECRET",
+    verify_no_match = True,
+)
+```
+
+### Metadata
+
+```starlark
+# Customize commit message
+metadata.squash_notes(
+    prefix = "Sync from internal:\n",
+    show_author = True,
+)
+
+# Add header to commit
+metadata.add_header("Synced-From: internal")
+```
+
+## Order Matters
+
+Transformations are applied sequentially:
+
+```starlark
+# CORRECT: move first, then replace in new location
+transformations = [
+    core.move("src/", "lib/"),
+    core.replace("src/", "lib/", paths = glob(["**/*.py"])),
+]
+
+# INCORRECT: replace references to old path, then move
+transformations = [
+    core.replace("src/", "lib/"),  # Still in src/
+    core.move("src/", "lib/"),     # Now paths don't match
+]
+```
+
+## Path Filtering
+
+Most transformations support `paths` parameter:
+
+```starlark
+core.replace(
+    before = "internal.corp",
+    after = "example.com",
+    paths = glob(["**/*.md", "**/*.txt"]),  # Only in these files
+)
+```
+
+## Reversibility
+
+For bidirectional workflows, transformations should be reversible:
+
+```starlark
+core.transform(
+    transformations = [
+        core.move("src/", "lib/"),
+    ],
+    reversal = [
+        core.move("lib/", "src/"),
+    ],
+)
+```
+
+<Aside type="note">
+Copybara can validate reversibility with `reversible_check = True` in the workflow.
+</Aside>
+
+## Debugging Transformations
+
+Use folder destination to see results:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky workflow \
+  --folder-destination /tmp/output
+
+# Inspect the output
+ls -la /tmp/output
+```
+
+## Common Patterns
+
+### Open Sourcing
+
+```starlark
+transformations = [
+    # Remove internal directories
+    core.remove(glob(["**/internal/**"])),
+
+    # Replace internal URLs
+    core.replace("internal.corp.com", "api.example.com"),
+
+    # Remove internal comments
+    core.replace(
+        before = "// INTERNAL:${content}\n",
+        after = "",
+        regex_groups = {"content": ".*"},
+    ),
+
+    # Verify no secrets
+    core.verify_match(
+        regex = "INTERNAL_SECRET|API_KEY_\\w+",
+        verify_no_match = True,
+    ),
+]
+```
+
+### Monorepo Extraction
+
+```starlark
+transformations = [
+    # Move subdirectory to root
+    core.move("packages/my-lib/", ""),
+
+    # Update import paths
+    core.replace(
+        before = "@monorepo/my-lib",
+        after = "my-lib",
+    ),
+]
+```
+
+## Next Steps
+
+- [Moving files](/copybara-docs/transformations/move/)
+- [Text replacement](/copybara-docs/transformations/replace/)
+- [Filtering & verification](/copybara-docs/transformations/filter/)
+- [Metadata transformations](/copybara-docs/transformations/metadata/)

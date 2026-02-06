@@ -1,0 +1,320 @@
+---
+title: CHANGE_REQUEST Mode
+description: Creating pull requests and change lists instead of direct pushes
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# CHANGE_REQUEST Mode
+
+CHANGE_REQUEST mode creates pull requests (GitHub) or change lists (Gerrit) instead of pushing directly to a branch. This is essential when:
+
+- You don't have direct push access to the destination
+- Changes need human review before merging
+- You want an audit trail of synced changes
+- Organization policy requires PR-based workflows
+
+## How It Works
+
+```
+┌─────────────────┐         ┌──────────────┐         ┌─────────────────┐
+│  Origin Repo    │────────▶│   Copybara   │────────▶│  Destination    │
+│  main branch    │         │              │         │  creates PR     │
+└─────────────────┘         └──────────────┘         └─────────────────┘
+                                                              │
+                                                              ▼
+                                                     ┌─────────────────┐
+                                                     │  PR #123        │
+                                                     │  copybara/sync  │
+                                                     └─────────────────┘
+```
+
+## GitHub PR Destination
+
+The most common use case - creating GitHub pull requests:
+
+```starlark
+core.workflow(
+    name = "sync-via-pr",
+
+    origin = git.github_origin(
+        url = "https://github.com/org/source-repo",
+        ref = "main",
+    ),
+
+    destination = git.github_pr_destination(
+        url = "https://github.com/org/dest-repo",
+        destination_ref = "main",
+        pr_branch = "copybara/sync-${CONTEXT_REFERENCE}",
+        title = "Sync from source",
+        body = "Automated sync from source repository.",
+    ),
+
+    authoring = authoring.pass_thru(
+        default = "Copybara Bot <copybara@example.com>",
+    ),
+
+    origin_files = glob(["**"]),
+
+    transformations = [
+        # Your transformations here
+    ],
+
+    mode = "SQUASH",
+)
+```
+
+### Key Parameters
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `url` | Destination repository URL | `https://github.com/org/repo` |
+| `destination_ref` | Target branch for PR | `main` |
+| `pr_branch` | Branch name for the PR | `copybara/sync-${CONTEXT_REFERENCE}` |
+| `title` | PR title | `Sync from internal` |
+| `body` | PR description | `Automated sync...` |
+
+### Dynamic Variables
+
+You can use variables in `pr_branch` and `title`:
+
+| Variable | Value |
+|----------|-------|
+| `${CONTEXT_REFERENCE}` | Origin commit SHA (short) |
+| `${COPYBARA_CONTEXT_REFERENCE}` | Same as above |
+
+```starlark
+pr_branch = "copybara/sync-${CONTEXT_REFERENCE}",
+title = "Sync: ${CONTEXT_REFERENCE}",
+```
+
+## Complete Example
+
+Here's a production-ready configuration:
+
+```starlark title="copy.bara.sky"
+github_url = "https://github.com/myorg/public-docs"
+internal_url = "https://github.com/myorg/internal-repo"
+
+core.workflow(
+    name = "sync-customer-docs",
+
+    origin = git.github_origin(
+        url = internal_url,
+        ref = "main",
+    ),
+
+    destination = git.github_pr_destination(
+        url = github_url,
+        destination_ref = "main",
+        pr_branch = "copybara/docs-sync-${CONTEXT_REFERENCE}",
+        title = "docs: sync from internal",
+        body = """\
+Automated documentation sync from internal repository.
+
+This PR was created by Copybara. Please review and merge.
+
+---
+**Source**: ${COPYBARA_CONTEXT_REFERENCE}
+""",
+        update_description = True,
+    ),
+
+    authoring = authoring.pass_thru(
+        default = "Docs Bot <docs-bot@example.com>",
+    ),
+
+    # Only sync customer-facing docs
+    origin_files = glob(
+        include = ["docs/public/**"],
+        exclude = [
+            "**/internal/**",
+            "**/*.draft.md",
+        ],
+    ),
+
+    # Don't modify external-only files
+    destination_files = glob(
+        include = ["**"],
+        exclude = [
+            "README.md",
+            "CONTRIBUTING.md",
+            ".github/**",
+        ],
+    ),
+
+    transformations = [
+        # Flatten docs/public/ to root
+        core.move("docs/public/", ""),
+
+        # Replace internal URLs
+        core.replace(
+            before = "internal.corp.com",
+            after = "docs.example.com",
+            paths = glob(["**/*.md"]),
+        ),
+
+        # Ensure no internal content leaks
+        core.verify_match(
+            regex = "INTERNAL|CONFIDENTIAL|@corp\\.internal",
+            verify_no_match = True,
+        ),
+
+        # Add sync metadata
+        metadata.add_header(
+            text = "Synced from internal repository",
+            ignore_label_not_found = True,
+        ),
+    ],
+
+    mode = "SQUASH",
+)
+```
+
+## PR Updates
+
+When you run Copybara multiple times:
+
+1. **Same changes**: Copybara updates the existing PR branch
+2. **New changes**: Copybara force-pushes to the PR branch
+3. **PR merged**: Next run creates a new PR
+
+<Aside type="tip">
+Use `update_description = True` to keep the PR description in sync with the latest changes.
+</Aside>
+
+## Gerrit CL Destination
+
+For Gerrit-based workflows:
+
+```starlark
+destination = git.gerrit_destination(
+    url = "https://gerrit.internal.com/repo",
+    fetch = "main",
+    push_to_refs_for = "main",
+)
+```
+
+This creates a Gerrit change list (CL) for review.
+
+## Authentication
+
+### GitHub Personal Access Token
+
+```bash
+# Set up HTTPS credentials
+git config --global credential.helper store
+echo "https://x-access-token:${GITHUB_TOKEN}@github.com" > ~/.git-credentials
+```
+
+### SSH Key
+
+```bash
+# Set up SSH key
+ssh-add ~/.ssh/id_ed25519
+```
+
+### Fine-Grained PAT (Recommended)
+
+Create a fine-grained PAT with:
+- **Repository access**: Only the destination repo
+- **Permissions**:
+  - Contents: Read and write
+  - Pull requests: Read and write
+
+## GitHub Actions Integration
+
+Run CHANGE_REQUEST workflows in CI:
+
+```yaml title=".github/workflows/sync.yml"
+name: Sync Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/public/**'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Download Copybara
+        run: |
+          curl -fsSL -o copybara.jar \
+            https://github.com/google/copybara/releases/download/v20251215/copybara_deploy.jar
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global credential.helper store
+          echo "https://x-access-token:${{ secrets.SYNC_PAT }}@github.com" > ~/.git-credentials
+
+      - name: Run Copybara
+        run: |
+          java -jar copybara.jar migrate copy.bara.sky sync-customer-docs --ignore-noop
+```
+
+<Aside type="note">
+Use `--ignore-noop` to avoid failing when there are no changes to sync.
+</Aside>
+
+## Handling PR States
+
+| Scenario | Copybara Behavior |
+|----------|-------------------|
+| PR doesn't exist | Creates new PR |
+| PR exists (open) | Updates PR branch (force push) |
+| PR exists (merged) | Creates new PR |
+| PR exists (closed) | Creates new PR |
+
+## Troubleshooting
+
+### "Cannot create PR"
+
+Check that your token has the `pull_requests: write` permission.
+
+### "Branch already exists"
+
+This is normal - Copybara reuses the PR branch. If you need a fresh start:
+
+```bash
+# Delete the remote branch
+git push origin --delete copybara/sync-xyz
+```
+
+### "No changes to migrate"
+
+Use `--ignore-noop` to not fail when there are no new changes:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky sync-customer-docs --ignore-noop
+```
+
+## Best Practices
+
+<Steps>
+1. **Use descriptive PR titles**: Include context about what's being synced
+2. **Add labels**: Help reviewers identify automated PRs
+3. **Exclude manual files**: Use `destination_files` to protect hand-edited content
+4. **Verify no secrets**: Use `core.verify_match` to prevent leaks
+5. **Test locally**: Use `folder.destination()` to preview changes
+</Steps>
+
+## Next Steps
+
+- [GitHub integration details](/copybara-docs/endpoints/github/)
+- [GitHub Actions setup](/copybara-docs/cicd/github-actions/)
+- [Transformations](/copybara-docs/transformations/overview/)

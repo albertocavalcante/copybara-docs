@@ -1,0 +1,246 @@
+---
+title: Metadata Transformations
+description: Modifying commit messages and metadata
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Metadata Transformations
+
+Metadata transformations modify commit messages, author information, and other Git metadata.
+
+## metadata.squash_notes
+
+Customize the commit message when squashing:
+
+```starlark
+metadata.squash_notes(
+    prefix = "Sync from internal:\n\n",
+    show_author = True,
+    show_description = True,
+)
+```
+
+### Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `prefix` | Text before the notes |
+| `show_author` | Include original authors |
+| `show_description` | Include original commit messages |
+| `oldest_first` | Order by oldest first (default: newest) |
+| `max` | Maximum number of notes to include |
+| `compact` | Use compact format |
+
+### Examples
+
+```starlark
+# Full details
+metadata.squash_notes(
+    prefix = "Changes imported from internal:\n\n",
+    show_author = True,
+    show_description = True,
+    oldest_first = True,
+)
+
+# Compact format
+metadata.squash_notes(
+    compact = True,
+    max = 10,
+)
+```
+
+### Output Example
+
+```
+Changes imported from internal:
+
+- Alice <alice@example.com>: Fix validation bug
+- Bob <bob@example.com>: Add user authentication
+- Alice <alice@example.com>: Update tests
+
+GitOrigin-RevId: abc123def456
+```
+
+## metadata.add_header
+
+Add text to commit messages:
+
+```starlark
+metadata.add_header("Synced-From: internal-repo")
+```
+
+### Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `text` | Text to add |
+| `new_line` | Add newline before header (default: True) |
+| `ignore_label_not_found` | Don't fail if label missing |
+
+### Examples
+
+```starlark
+# Simple header
+metadata.add_header("Synced-From: internal")
+
+# With label reference
+metadata.add_header(
+    text = "Reviewed-By: ${REVIEWED_BY}",
+    ignore_label_not_found = True,
+)
+
+# Multiple headers
+transformations = [
+    metadata.add_header("Synced-From: internal"),
+    metadata.add_header("Sync-Bot: copybara"),
+]
+```
+
+## metadata.expose_label
+
+Make commit message labels available for use:
+
+```starlark
+metadata.expose_label("Bug")
+metadata.expose_label("Reviewed-by")
+```
+
+### Common Labels
+
+```starlark
+transformations = [
+    # Standard Git trailers
+    metadata.expose_label("Co-authored-by"),
+    metadata.expose_label("Signed-off-by"),
+    metadata.expose_label("Reviewed-by"),
+
+    # GitHub keywords
+    metadata.expose_label("Closes"),
+    metadata.expose_label("Fixes"),
+    metadata.expose_label("Resolves"),
+]
+```
+
+<Aside type="note">
+Labels are extracted from commit messages in the format `Label: value`.
+</Aside>
+
+## metadata.map_author
+
+Remap author email addresses:
+
+```starlark
+metadata.map_author({
+    "internal@corp.com": "external@example.com",
+    "alice.internal@corp.com": "alice@example.com",
+})
+```
+
+### Examples
+
+```starlark
+# Map multiple authors
+metadata.map_author({
+    "alice@internal.corp": "alice@public.example.com",
+    "bob@internal.corp": "bob@public.example.com",
+    "service@internal.corp": "bot@public.example.com",
+})
+```
+
+## metadata.replace_message
+
+Replace the entire commit message:
+
+```starlark
+metadata.replace_message("Automated sync from internal repository")
+```
+
+### With Template
+
+```starlark
+metadata.replace_message("""\
+Sync: ${COPYBARA_CONTEXT_REFERENCE}
+
+This commit was automatically synced from the internal repository.
+
+Original commit: ${COPYBARA_CONTEXT_REFERENCE}
+""")
+```
+
+## metadata.remove_label
+
+Remove a label from commit messages:
+
+```starlark
+metadata.remove_label("Internal-Bug")
+```
+
+## metadata.restore_author
+
+Restore original author from a label:
+
+```starlark
+metadata.restore_author(
+    label = "ORIGINAL_AUTHOR",
+    search_all_changes = True,
+)
+```
+
+## Combining Metadata Transformations
+
+```starlark
+transformations = [
+    # Preserve standard trailers
+    metadata.expose_label("Co-authored-by"),
+    metadata.expose_label("Signed-off-by"),
+
+    # Map internal emails
+    metadata.map_author({
+        "internal@corp.com": "external@example.com",
+    }),
+
+    # Add sync metadata
+    metadata.add_header("Synced-From: internal"),
+    metadata.add_header("Sync-Time: ${COPYBARA_CURRENT_TIME}"),
+
+    # Squash with notes
+    metadata.squash_notes(
+        prefix = "Imported changes:\n\n",
+        show_author = True,
+        show_description = True,
+    ),
+]
+```
+
+## ITERATIVE Mode Specifics
+
+In ITERATIVE mode, each commit retains its individual message:
+
+```starlark
+# Only add header, don't squash
+transformations = [
+    metadata.add_header("GitOrigin-RevId: ${COPYBARA_CONTEXT_REFERENCE}"),
+]
+```
+
+## Commit Message Format
+
+Copybara adds state tracking to commit messages:
+
+```
+Original commit message here.
+
+GitOrigin-RevId: abc123def456789
+```
+
+This allows Copybara to track what's been synced.
+
+<Aside type="caution">
+Don't remove `GitOrigin-RevId` - it's used for state tracking. Removing it will cause Copybara to re-sync all changes.
+</Aside>
+
+## Next Steps
+
+- [Custom transformations](/copybara-docs/transformations/custom/)
+- [Authoring configuration](/copybara-docs/config/authoring/)

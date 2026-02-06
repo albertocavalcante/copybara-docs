@@ -1,0 +1,186 @@
+---
+title: Core Module Reference
+description: Reference for core.* functions
+---
+
+# Core Module Reference
+
+The `core` module provides the fundamental workflow and transformation functions.
+
+## Workflows
+
+### core.workflow
+
+Define a code synchronization workflow:
+
+```starlark
+core.workflow(
+    name = "string",                    # Required: unique identifier
+    origin = origin,                    # Required: source of code
+    destination = destination,          # Required: target for code
+    authoring = authoring,              # Required: author handling
+    origin_files = glob(["**"]),        # Optional: files to read
+    destination_files = glob(["**"]),   # Optional: files to manage
+    transformations = [],               # Optional: transformations
+    mode = "SQUASH",                    # Optional: commit mode
+    reversible_check = False,           # Optional: verify reversibility
+    check_last_rev_state = True,        # Optional: validate state
+    ask_for_confirmation = False,       # Optional: interactive confirm
+)
+```
+
+### core.feedback
+
+Define an event reaction workflow:
+
+```starlark
+core.feedback(
+    name = "string",                    # Required: unique identifier
+    origin = trigger,                   # Required: event source
+    destination = api,                  # Required: API destination
+    actions = [],                       # Required: actions to perform
+)
+```
+
+## Transformations
+
+### core.move
+
+Move files or directories:
+
+```starlark
+core.move(
+    before = "source/path/",            # Source path
+    after = "dest/path/",               # Destination path
+    paths = glob(["**"]),               # Optional: filter
+    overwrite = False,                  # Optional: overwrite existing
+)
+```
+
+### core.copy
+
+Copy files (keep originals):
+
+```starlark
+core.copy(
+    before = "source",                  # Source path
+    after = "destination",              # Destination path
+    paths = glob(["**"]),               # Optional: filter
+    overwrite = False,                  # Optional: overwrite existing
+)
+```
+
+### core.remove
+
+Remove files:
+
+```starlark
+core.remove(
+    glob(["**/internal/**"]),           # Files to remove
+)
+```
+
+### core.replace
+
+Text replacement:
+
+```starlark
+core.replace(
+    before = "old_text",                # Text to find
+    after = "new_text",                 # Replacement text
+    regex_groups = {},                  # Optional: regex capture groups
+    paths = glob(["**"]),               # Optional: file filter
+    first_only = False,                 # Optional: first match only
+    multiline = False,                  # Optional: multiline mode
+)
+```
+
+### core.filter_replace
+
+Replacement with mapping:
+
+```starlark
+core.filter_replace(
+    regex = "pattern",                  # Pattern to match
+    mapping = {"key": "value"},         # Replacement mapping
+    default = None,                     # Optional: default if no match
+    paths = glob(["**"]),               # Optional: file filter
+)
+```
+
+### core.verify_match
+
+Verify pattern presence:
+
+```starlark
+core.verify_match(
+    regex = "pattern",                  # Pattern to check
+    paths = glob(["**"]),               # Optional: file filter
+    verify_no_match = False,            # If True, fail if pattern found
+)
+```
+
+### core.transform
+
+Group transformations with reversal:
+
+```starlark
+core.transform(
+    transformations = [],               # Forward transformations
+    reversal = [],                      # Reverse transformations
+    ignore_noop = False,                # Don't fail on no-op
+)
+```
+
+### core.dynamic_transform
+
+Custom Starlark transformation:
+
+```starlark
+def _my_transform(ctx):
+    for f in ctx.run(glob(["**/*.txt"])):
+        content = ctx.read_path(f)
+        ctx.write_path(f, content.upper())
+    return ctx.success()
+
+core.dynamic_transform(impl = _my_transform)
+```
+
+## Actions
+
+### core.action
+
+Define a feedback action:
+
+```starlark
+def _my_action(ctx):
+    ctx.destination.create_issue(title = "...", body = "...")
+    return ctx.success()
+
+core.action(
+    impl = _my_action,
+    params = {},
+)
+```
+
+## Glob Function
+
+### glob
+
+Create file patterns:
+
+```starlark
+# Include patterns
+glob(["src/**", "docs/**"])
+
+# Include and exclude
+glob(
+    include = ["**"],
+    exclude = ["**/test/**"],
+)
+```
+
+## Next Steps
+
+- [Git module reference](/copybara-docs/reference/git/)
+- [Metadata module reference](/copybara-docs/reference/metadata/)

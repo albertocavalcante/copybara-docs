@@ -1,0 +1,104 @@
+---
+title: Introduction to Copybara
+description: What is Copybara and why use it for code synchronization
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+# Introduction to Copybara
+
+Copybara is Google's open-source tool for **transforming and moving code between repositories**. It was developed internally at Google and open-sourced to help teams manage code synchronization across different repositories.
+
+## The Problem Copybara Solves
+
+Many organizations face challenges when code needs to exist in multiple places:
+
+- **Open sourcing**: Internal code needs to be published externally, but with sensitive information removed
+- **Vendor imports**: External libraries need to be imported with custom patches applied
+- **Monorepo extraction**: Parts of a monorepo need to be released as standalone repositories
+- **Contribution sync**: External contributions need to flow back to internal systems
+
+Manually managing these workflows is error-prone and time-consuming. Copybara automates the entire process.
+
+## How Copybara Works
+
+```
+┌─────────────────┐         ┌──────────────┐         ┌─────────────────┐
+│  Source Repo    │────────▶│   Copybara   │────────▶│  Destination    │
+│  (Origin)       │         │  (Transform) │         │  Repo           │
+└─────────────────┘         └──────────────┘         └─────────────────┘
+```
+
+<Steps>
+1. **Read** code from the origin repository
+2. **Transform** files (move, rename, replace content, filter)
+3. **Write** to the destination repository (commit or PR)
+4. **Track** state so only new changes are synced next time
+</Steps>
+
+## Key Features
+
+### Declarative Configuration
+
+Copybara uses [Starlark](https://github.com/bazelbuild/starlark) (a Python-like language) for configuration. You declare what you want, and Copybara figures out how to do it.
+
+```starlark
+core.workflow(
+    name = "my-workflow",
+    origin = git.origin(url = "..."),
+    destination = git.destination(url = "..."),
+    transformations = [...],
+)
+```
+
+### Powerful Transformations
+
+- **Move/copy files**: Restructure directory layouts
+- **Text replacement**: Change URLs, names, or any text patterns
+- **File filtering**: Include only what should be public
+- **Verification**: Ensure no secrets or internal content is leaked
+
+### Multiple Workflow Modes
+
+| Mode | Use Case |
+|------|----------|
+| `SQUASH` | Combine all changes into a single commit |
+| `ITERATIVE` | Preserve individual commit history |
+| `CHANGE_REQUEST` | Create PRs/CLs for review |
+
+### Bidirectional Sync
+
+Copybara supports both:
+- **Export**: Internal → External (open sourcing)
+- **Import**: External → Internal (accepting contributions)
+
+<Aside type="tip">
+You can define both directions in the same config file with different workflow names.
+</Aside>
+
+## Architecture
+
+Copybara is written in Java and uses:
+
+- **[starlark-java](https://github.com/bazelbuild/bazel/tree/master/src/main/java/net/starlark/java)**: The same Starlark implementation used by Bazel
+- **JGit**: For Git operations
+- **GitHub/Gerrit APIs**: For creating PRs and CLs
+
+## When to Use Copybara
+
+**Use Copybara when:**
+- You need to sync code between repositories automatically
+- Transformations are required (not a simple mirror)
+- You want PR-based workflows instead of direct pushes
+- State tracking is important (don't re-sync already-synced changes)
+
+**Consider alternatives when:**
+- Simple mirroring with no transformations (use `git push --mirror`)
+- One-time migration (use `git filter-branch` or similar)
+- Real-time sync (Copybara is batch-oriented)
+
+## Next Steps
+
+- [Install Copybara](/copybara-docs/getting-started/installation/)
+- [Quick Start tutorial](/copybara-docs/getting-started/quick-start/)
+- [Understand core concepts](/copybara-docs/getting-started/concepts/)

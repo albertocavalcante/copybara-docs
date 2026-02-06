@@ -1,0 +1,178 @@
+---
+title: Mirroring Repositories
+description: Keeping repositories in sync with transformations
+---
+
+# Mirroring Repositories
+
+Maintain synchronized copies of repositories with optional transformations.
+
+## Simple Mirror
+
+Basic mirroring without transformations:
+
+```starlark
+core.workflow(
+    name = "mirror",
+    origin = git.origin(
+        url = "https://github.com/upstream/repo",
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = "https://github.com/myorg/mirror",
+        push = "main",
+    ),
+    origin_files = glob(["**"]),
+    authoring = authoring.pass_thru("Mirror Bot <mirror@myorg.com>"),
+    mode = "ITERATIVE",  # Preserve commit history
+)
+```
+
+## Mirror with Transformations
+
+Apply changes during mirroring:
+
+```starlark
+core.workflow(
+    name = "mirror",
+    origin = git.origin(
+        url = "https://github.com/upstream/repo",
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = "https://github.com/myorg/fork",
+        push = "main",
+    ),
+    origin_files = glob(["**"]),
+    authoring = authoring.pass_thru("Fork Bot <fork@myorg.com>"),
+    transformations = [
+        # Apply custom patches
+        core.replace(
+            before = "upstream.example.com",
+            after = "myorg.example.com",
+        ),
+    ],
+    mode = "SQUASH",
+)
+```
+
+## Partial Mirror
+
+Mirror only specific parts:
+
+```starlark
+core.workflow(
+    name = "partial-mirror",
+    origin = git.origin(
+        url = "https://github.com/upstream/monorepo",
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = "https://github.com/myorg/specific-package",
+        push = "main",
+    ),
+    origin_files = glob(["packages/specific/**"]),
+    transformations = [
+        core.move("packages/specific/", ""),
+    ],
+    authoring = authoring.pass_thru("Mirror <mirror@myorg.com>"),
+    mode = "SQUASH",
+)
+```
+
+## Fork Maintenance
+
+Keep a fork in sync with upstream while maintaining patches:
+
+```starlark
+core.workflow(
+    name = "sync-fork",
+    origin = git.origin(
+        url = "https://github.com/upstream/repo",
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = "https://github.com/myorg/fork",
+        fetch = "upstream-sync",
+        push = "upstream-sync",
+    ),
+    destination_files = glob(
+        include = ["**"],
+        exclude = ["myorg-patches/**"],  # Keep our patches
+    ),
+    authoring = authoring.pass_thru("Sync <sync@myorg.com>"),
+    mode = "SQUASH",
+)
+```
+
+## Read-Only Mirror
+
+Add a notice that the mirror is read-only:
+
+```starlark
+transformations = [
+    metadata.add_header(
+        text = """\
+This is a read-only mirror. Do not submit changes here.
+
+Source: https://github.com/upstream/repo
+""",
+    ),
+]
+```
+
+## Scheduled Mirroring
+
+Run in GitHub Actions on a schedule:
+
+```yaml title=".github/workflows/mirror.yml"
+name: Mirror Upstream
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Copybara
+        run: |
+          java -jar copybara.jar migrate copy.bara.sky mirror
+```
+
+## Multi-Branch Mirror
+
+Mirror multiple branches:
+
+```starlark
+def mirror_branch(branch):
+    return core.workflow(
+        name = "mirror-" + branch,
+        origin = git.origin(
+            url = "https://github.com/upstream/repo",
+            ref = branch,
+        ),
+        destination = git.destination(
+            url = "https://github.com/myorg/mirror",
+            push = branch,
+        ),
+        authoring = authoring.pass_thru("Mirror <mirror@myorg.com>"),
+        mode = "ITERATIVE",
+    )
+
+# Create workflows for each branch
+mirror_branch("main")
+mirror_branch("release/v1")
+mirror_branch("release/v2")
+```
+
+## Next Steps
+
+- [Monorepo extraction](/copybara-docs/use-cases/monorepo/)
+- [GitHub Actions](/copybara-docs/cicd/github-actions/)

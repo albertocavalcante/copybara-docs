@@ -1,0 +1,105 @@
+---
+title: Glob Reference
+description: Reference for glob patterns
+---
+
+# Glob Reference
+
+Globs define file patterns for filtering.
+
+## Syntax
+
+```starlark
+glob(include, exclude)
+```
+
+## Pattern Characters
+
+| Pattern | Matches |
+|---------|---------|
+| `*` | Any characters except `/` |
+| `**` | Any characters including `/` |
+| `?` | Single character |
+| `[abc]` | Character class |
+| `[!abc]` | Negated character class |
+
+## Examples
+
+### Include Only
+
+```starlark
+glob(["src/**", "docs/**"])
+```
+
+### Include and Exclude
+
+```starlark
+glob(
+    include = ["**"],
+    exclude = ["**/internal/**"],
+)
+```
+
+### By Extension
+
+```starlark
+glob(["**/*.py", "**/*.pyi"])
+```
+
+### By Directory
+
+```starlark
+glob(["src/**"])
+glob(["src/*"])  # One level only
+```
+
+### Exclude Multiple
+
+```starlark
+glob(
+    include = ["**"],
+    exclude = [
+        "**/test/**",
+        "**/*_test.go",
+        "**/testdata/**",
+    ],
+)
+```
+
+## Usage Contexts
+
+### origin_files
+
+```starlark
+origin_files = glob(["src/**"])
+```
+
+### destination_files
+
+```starlark
+destination_files = glob(
+    include = ["**"],
+    exclude = ["README.md"],
+)
+```
+
+### Transformation paths
+
+```starlark
+core.replace(
+    before = "old",
+    after = "new",
+    paths = glob(["**/*.md"]),
+)
+```
+
+### core.remove
+
+```starlark
+core.remove(glob(["**/*.bak"]))
+```
+
+## Next Steps
+
+- [Glob patterns guide](/copybara-docs/config/glob-patterns/)
+- [Transformations overview](/copybara-docs/transformations/overview/)

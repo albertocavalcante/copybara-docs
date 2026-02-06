@@ -1,0 +1,230 @@
+---
+title: Open Sourcing Internal Code
+description: Exporting internal code to public repositories
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+# Open Sourcing Internal Code
+
+The most common Copybara use case: publishing internal code to public repositories while keeping sensitive content private.
+
+## The Challenge
+
+Internal code often contains:
+- Internal URLs and hostnames
+- References to internal systems
+- Internal-only documentation
+- Sensitive configuration
+- Internal employee names/emails
+
+Copybara helps strip these while preserving the code's functionality.
+
+## Basic Export Workflow
+
+```starlark title="copy.bara.sky"
+core.workflow(
+    name = "export",
+
+    origin = git.github_origin(
+        url = "https://github.com/company/internal-repo",
+        ref = "main",
+    ),
+
+    destination = git.github_destination(
+        url = "https://github.com/company/public-repo",
+        push = "main",
+    ),
+
+    # Only export public directories
+    origin_files = glob(
+        include = ["src/**", "docs/public/**", "examples/**"],
+        exclude = ["**/internal/**", "**/corp/**"],
+    ),
+
+    # Don't touch external-specific files
+    destination_files = glob(
+        include = ["**"],
+        exclude = ["README.md", "CONTRIBUTING.md", ".github/**"],
+    ),
+
+    authoring = authoring.pass_thru("OSS Bot <oss@company.com>"),
+
+    transformations = [
+        # Restructure directories
+        core.move("docs/public/", "docs/"),
+
+        # Replace internal URLs
+        core.replace("internal.company.com", "api.company.io"),
+        core.replace("corp.company.com", "company.io"),
+
+        # Remove internal comments
+        core.replace(
+            before = "// INTERNAL: ${content}\n",
+            after = "",
+            regex_groups = {"content": ".*"},
+        ),
+
+        # Remove internal TODOs
+        core.replace(
+            before = "// TODO(${user}@corp): ${content}\n",
+            after = "",
+            regex_groups = {"user": "[a-z]+", "content": ".*"},
+        ),
+
+        # Map internal emails
+        metadata.map_author({
+            "internal@company.com": "oss@company.io",
+        }),
+
+        # CRITICAL: Verify no secrets
+        core.verify_match(
+            regex = "INTERNAL|CORP_SECRET|@corp\\.company\\.com",
+            verify_no_match = True,
+        ),
+
+        # Add sync metadata
+        metadata.add_header("Exported from internal repository"),
+    ],
+
+    mode = "SQUASH",
+)
+```
+
+## Step-by-Step Setup
+
+<Steps>
+1. **Identify public content**
+   - Which directories should be public?
+   - Which files contain sensitive information?
+
+2. **Configure origin_files**
+   ```starlark
+   origin_files = glob(
+       include = ["src/**"],
+       exclude = ["**/internal/**"],
+   )
+   ```
+
+3. **Add transformations**
+   - Remove internal URLs
+   - Clean up internal comments
+   - Verify no secrets
+
+4. **Test locally**
+   ```bash
+   java -jar copybara.jar migrate copy.bara.sky export \
+     --folder-destination /tmp/preview
+   ```
+
+5. **Initial sync**
+   ```bash
+   java -jar copybara.jar migrate copy.bara.sky export \
+     --init-history
+   ```
+</Steps>
+
+## Common Transformations
+
+### Remove Internal Comments
+
+```starlark
+# Single-line comments
+core.replace(
+    before = "// INTERNAL: ${content}\n",
+    after = "",
+    regex_groups = {"content": ".*"},
+)
+
+# Block comments
+core.replace(
+    before = "/* INTERNAL\n${content}*/\n",
+    after = "",
+    regex_groups = {"content": "[\\s\\S]*?"},
+    multiline = True,
+)
+
+# Python/Shell comments
+core.replace(
+    before = "# INTERNAL: ${content}\n",
+    after = "",
+    regex_groups = {"content": ".*"},
+)
+```
+
+### Replace Internal URLs
+
+```starlark
+core.replace("https://internal.corp.com", "https://api.company.io")
+core.replace("git@internal.corp.com:", "git@github.com:company/")
+```
+
+### Remove Internal Files
+
+```starlark
+core.remove(glob([
+    "**/INTERNAL_*.md",
+    "**/internal/**",
+    "**/*.internal.*",
+]))
+```
+
+### Map Author Emails
+
+```starlark
+metadata.map_author({
+    "alice@corp.internal": "alice@company.io",
+    "bob@corp.internal": "bob@company.io",
+})
+```
+
+## Security Checklist
+
+<Aside type="caution">
+Always verify no sensitive content is exported:
+</Aside>
+
+```starlark
+transformations = [
+    # ... other transforms ...
+
+    # Verify no secrets
+    core.verify_match(
+        regex = """(?i)(
+            api[_-]?key|
+            secret|
+            password|
+            credential|
+            token|
+            @corp\\.internal|
+            internal\\.corp|
+            DO NOT SUBMIT
+        )""",
+        verify_no_match = True,
+    ),
+]
+```
+
+## PR-Based Export
+
+Use PRs for human review before publishing:
+
+```starlark
+destination = git.github_pr_destination(
+    url = "https://github.com/company/public-repo",
+    destination_ref = "main",
+    pr_branch = "copybara/export-${CONTEXT_REFERENCE}",
+    title = "Export from internal",
+    body = "Automated export. Please review before merging.",
+    labels = ["automated", "needs-review"],
+),
+```
+
+## Accepting Contributions
+
+See [Importing Contributions](/copybara-docs/use-cases/importing/) for the reverse workflow.
+
+## Next Steps
+
+- [Importing contributions](/copybara-docs/use-cases/importing/)
+- [GitHub Actions setup](/copybara-docs/cicd/github-actions/)

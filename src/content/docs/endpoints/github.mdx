@@ -1,0 +1,312 @@
+---
+title: GitHub Integration
+description: Working with GitHub repositories, PRs, and APIs
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# GitHub Integration
+
+Copybara has deep integration with GitHub for both reading and writing code, as well as interacting with the GitHub API.
+
+## Origins
+
+### git.github_origin
+
+Read from a GitHub repository with API integration:
+
+```starlark
+origin = git.github_origin(
+    url = "https://github.com/org/repo",
+    ref = "main",
+)
+```
+
+#### With Review Requirements
+
+```starlark
+origin = git.github_origin(
+    url = "https://github.com/org/repo",
+    ref = "main",
+    review_state = "APPROVED",
+    review_approvers = ["maintainer1", "maintainer2"],
+)
+```
+
+### git.github_pr_origin
+
+Read from GitHub pull requests:
+
+```starlark
+origin = git.github_pr_origin(
+    url = "https://github.com/org/repo",
+    branch = "main",
+    required_labels = ["ready-to-merge"],
+)
+```
+
+<Aside type="tip">
+Use `required_labels` to control which PRs are eligible for import.
+</Aside>
+
+## Destinations
+
+### git.github_destination
+
+Push directly to a GitHub repository:
+
+```starlark
+destination = git.github_destination(
+    url = "https://github.com/org/repo",
+    push = "main",
+)
+```
+
+### git.github_pr_destination
+
+Create pull requests:
+
+```starlark
+destination = git.github_pr_destination(
+    url = "https://github.com/org/repo",
+    destination_ref = "main",
+    pr_branch = "copybara/sync-${CONTEXT_REFERENCE}",
+    title = "Sync from internal",
+    body = "Automated sync",
+)
+```
+
+#### Full Configuration
+
+```starlark
+destination = git.github_pr_destination(
+    url = "https://github.com/org/repo",
+    destination_ref = "main",
+    pr_branch = "copybara/sync-${CONTEXT_REFERENCE}",
+    title = "Sync from internal",
+    body = """\
+## Summary
+Automated sync from internal repository.
+
+## Changes
+See commit history for details.
+
+## Checklist
+- [ ] Review changes
+- [ ] Run tests
+- [ ] Approve and merge
+""",
+    draft = False,
+    update_description = True,
+    assignees = ["reviewer1", "reviewer2"],
+    labels = ["automated", "documentation"],
+)
+```
+
+## GitHub API
+
+### git.github_api
+
+Interact with GitHub API in feedback workflows:
+
+```starlark
+destination = git.github_api(
+    url = "https://github.com/org/repo",
+)
+```
+
+### git.github_trigger
+
+Listen to GitHub events:
+
+```starlark
+origin = git.github_trigger(
+    url = "https://github.com/org/repo",
+    events = ["pull_request", "push"],
+)
+```
+
+## API Actions
+
+In feedback workflows, you can perform API actions:
+
+```starlark
+def _my_action(ctx):
+    # Create an issue
+    ctx.destination.create_issue(
+        title = "Issue title",
+        body = "Issue body",
+        labels = ["bug"],
+    )
+
+    # Add a comment
+    ctx.destination.add_comment(
+        number = 123,
+        body = "Automated comment",
+    )
+
+    # Get PR info
+    pr = ctx.destination.get_pull_request(123)
+
+    return ctx.success()
+```
+
+## Authentication
+
+### Personal Access Token (Classic)
+
+<Tabs>
+<TabItem label="Setup">
+
+1. Go to GitHub Settings → Developer settings → Personal access tokens
+2. Generate new token (classic)
+3. Select scopes: `repo`, `workflow` (if needed)
+4. Copy token
+
+</TabItem>
+<TabItem label="Usage">
+
+```bash
+# Configure Git
+git config --global credential.helper store
+echo "https://x-access-token:${GITHUB_TOKEN}@github.com" > ~/.git-credentials
+```
+
+</TabItem>
+</Tabs>
+
+### Fine-Grained Token (Recommended)
+
+<Tabs>
+<TabItem label="Setup">
+
+1. Go to GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens
+2. Generate new token
+3. Select repository access: Only specific repositories
+4. Select permissions:
+   - Contents: Read and write
+   - Pull requests: Read and write
+   - Metadata: Read
+
+</TabItem>
+<TabItem label="Usage">
+
+Same as classic token:
+
+```bash
+git config --global credential.helper store
+echo "https://x-access-token:${FINE_GRAINED_TOKEN}@github.com" > ~/.git-credentials
+```
+
+</TabItem>
+</Tabs>
+
+<Aside type="tip">
+Fine-grained tokens are more secure because they can be scoped to specific repositories.
+</Aside>
+
+### SSH Key
+
+```bash
+# Add SSH key
+ssh-add ~/.ssh/id_ed25519
+
+# Use SSH URL in config
+origin = git.origin(
+    url = "git@github.com:org/repo.git",
+    ref = "main",
+)
+```
+
+## PR Variables
+
+Available in `github_pr_destination`:
+
+| Variable | Description |
+|----------|-------------|
+| `${CONTEXT_REFERENCE}` | Source commit SHA (short) |
+| `${COPYBARA_CONTEXT_REFERENCE}` | Same as above |
+
+```starlark
+pr_branch = "copybara/sync-${CONTEXT_REFERENCE}",
+title = "Sync: ${CONTEXT_REFERENCE}",
+```
+
+## PR Lifecycle
+
+When running multiple times:
+
+| Scenario | Behavior |
+|----------|----------|
+| PR doesn't exist | Create new PR |
+| PR exists (open) | Update branch (force push) |
+| PR merged | Create new PR |
+| PR closed | Create new PR |
+
+<Aside type="note">
+Copybara reuses PR branches. To force a new PR, delete the branch first.
+</Aside>
+
+## Rate Limiting
+
+GitHub API has rate limits:
+
+- **Authenticated**: 5,000 requests/hour
+- **Search API**: 30 requests/minute
+
+Copybara handles rate limiting automatically with retries.
+
+## Common Patterns
+
+### Export to GitHub
+
+```starlark
+core.workflow(
+    name = "export",
+    origin = git.origin(url = internal_url, ref = "main"),
+    destination = git.github_destination(
+        url = github_url,
+        push = "main",
+    ),
+    ...
+)
+```
+
+### Export via PR
+
+```starlark
+core.workflow(
+    name = "export-pr",
+    origin = git.origin(url = internal_url, ref = "main"),
+    destination = git.github_pr_destination(
+        url = github_url,
+        destination_ref = "main",
+    ),
+    ...
+)
+```
+
+### Import from GitHub
+
+```starlark
+core.workflow(
+    name = "import",
+    origin = git.github_pr_origin(
+        url = github_url,
+        branch = "main",
+        required_labels = ["approved"],
+    ),
+    destination = git.gerrit_destination(
+        url = internal_url,
+        push_to_refs_for = "main",
+    ),
+    mode = "CHANGE_REQUEST_FROM_SOT",
+    ...
+)
+```
+
+## Next Steps
+
+- [GitHub Actions setup](/copybara-docs/cicd/github-actions/)
+- [Authentication guide](/copybara-docs/cicd/authentication/)
+- [CHANGE_REQUEST mode](/copybara-docs/workflows/change-request/)

@@ -1,0 +1,242 @@
+---
+title: Workflow Modes
+description: Deep dive into SQUASH, ITERATIVE, CHANGE_REQUEST, and CHANGE_REQUEST_FROM_SOT modes
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Workflow Modes
+
+The `mode` parameter controls how Copybara creates commits in the destination repository.
+
+## Mode Comparison
+
+| Mode | Commits | Destination | Review | Best For |
+|------|---------|-------------|--------|----------|
+| `SQUASH` | All → 1 | Direct push | No | Simple sync |
+| `ITERATIVE` | 1 → 1 | Direct push | No | History preservation |
+| `CHANGE_REQUEST` | All → 1 PR | PR/CL | Yes | External review |
+| `CHANGE_REQUEST_FROM_SOT` | All → 1 PR | PR/CL | Yes | Bidirectional |
+
+## SQUASH Mode
+
+The default and most commonly used mode. All origin changes are combined into a single destination commit.
+
+```starlark
+core.workflow(
+    name = "export",
+    mode = "SQUASH",
+    ...
+)
+```
+
+### Behavior
+
+```
+Origin commits:          Destination:
+┌─────┐ ┌─────┐ ┌─────┐     ┌───────────────┐
+│ A   │ │ B   │ │ C   │ ──▶ │ A + B + C     │
+└─────┘ └─────┘ └─────┘     │ (squashed)    │
+                            └───────────────┘
+```
+
+### Commit Message
+
+SQUASH mode creates a commit message with metadata:
+
+```
+Sync from origin
+
+- Change A description
+- Change B description
+- Change C description
+
+GitOrigin-RevId: abc123def456
+```
+
+### When to Use
+
+- Most sync workflows
+- When origin history isn't important
+- When you want clean destination history
+- When dealing with complex merge histories
+
+<Aside type="tip">
+SQUASH is the safest mode - it handles edge cases like merge commits gracefully.
+</Aside>
+
+## ITERATIVE Mode
+
+Preserves individual commits from the origin. Each origin commit becomes a destination commit.
+
+```starlark
+core.workflow(
+    name = "export",
+    mode = "ITERATIVE",
+    ...
+)
+```
+
+### Behavior
+
+```
+Origin commits:          Destination commits:
+┌─────┐ ┌─────┐ ┌─────┐     ┌─────┐ ┌─────┐ ┌─────┐
+│ A   │ │ B   │ │ C   │ ──▶ │ A'  │ │ B'  │ │ C'  │
+└─────┘ └─────┘ └─────┘     └─────┘ └─────┘ └─────┘
+```
+
+### When to Use
+
+- When commit history must be preserved
+- When individual changes need to be traceable
+- For auditing or compliance requirements
+
+### Limitations
+
+- Merge commits can cause issues
+- More complex to troubleshoot
+- Larger initial sync time
+
+<Aside type="caution">
+ITERATIVE mode may fail on complex histories with merges. Consider SQUASH if you encounter issues.
+</Aside>
+
+## CHANGE_REQUEST Mode
+
+Creates a pull request (GitHub) or change list (Gerrit) instead of pushing directly.
+
+```starlark
+core.workflow(
+    name = "export",
+    mode = "CHANGE_REQUEST",
+    destination = git.github_pr_destination(
+        url = "https://github.com/org/repo",
+        destination_ref = "main",
+        pr_branch = "copybara/sync-${CONTEXT_REFERENCE}",
+        title = "Sync from internal",
+    ),
+    ...
+)
+```
+
+### Behavior
+
+```
+Origin commits:          Destination:
+┌─────┐ ┌─────┐ ┌─────┐     ┌─────────────────┐
+│ A   │ │ B   │ │ C   │ ──▶ │ PR #123         │
+└─────┘ └─────┘ └─────┘     │ copybara/sync-* │
+                            └─────────────────┘
+```
+
+### When to Use
+
+- When changes need review before merging
+- When you don't have direct push access
+- For audited change processes
+- When human approval is required
+
+### PR Destination Options
+
+```starlark
+git.github_pr_destination(
+    url = "https://github.com/org/repo",
+    destination_ref = "main",
+    pr_branch = "copybara/sync-${CONTEXT_REFERENCE}",
+    title = "Sync: ${CONTEXT_REFERENCE}",
+    body = "Automated sync from internal repository",
+    # Optional settings
+    update_description = True,  # Update PR description on re-run
+    primary_branch_migration = True,  # Use default branch if main doesn't exist
+)
+```
+
+<Aside type="note">
+See [CHANGE_REQUEST deep dive](/copybara-docs/workflows/change-request/) for complete documentation.
+</Aside>
+
+## CHANGE_REQUEST_FROM_SOT Mode
+
+Similar to CHANGE_REQUEST, but designed for importing changes back to the source of truth.
+
+```starlark
+core.workflow(
+    name = "import",
+    mode = "CHANGE_REQUEST_FROM_SOT",
+    origin = git.github_pr_origin(
+        url = "https://github.com/org/public-repo",
+        branch = "main",
+    ),
+    destination = git.gerrit_destination(
+        url = "https://gerrit.internal/repo",
+        push_to_refs_for = "main",
+    ),
+    ...
+)
+```
+
+### Behavior
+
+Imports external PRs as internal CLs for review:
+
+```
+GitHub PR:              Internal Gerrit:
+┌─────────────┐            ┌─────────────┐
+│ PR #42      │ ──────────▶ │ CL 12345    │
+│ (external)  │            │ (for review)│
+└─────────────┘            └─────────────┘
+```
+
+### When to Use
+
+- Importing external contributions to internal systems
+- When external changes need internal review
+- Gerrit-based internal development
+
+## Mode Selection Guide
+
+<Tabs>
+<TabItem label="Simple Sync">
+
+Use **SQUASH**:
+
+```starlark
+mode = "SQUASH",
+destination = git.destination(url = ..., push = "main"),
+```
+
+Best for: Regular sync where destination history doesn't need to match origin.
+
+</TabItem>
+<TabItem label="History Preservation">
+
+Use **ITERATIVE**:
+
+```starlark
+mode = "ITERATIVE",
+destination = git.destination(url = ..., push = "main"),
+```
+
+Best for: When you need 1:1 commit mapping.
+
+</TabItem>
+<TabItem label="PR-based">
+
+Use **CHANGE_REQUEST**:
+
+```starlark
+mode = "SQUASH",  # or "ITERATIVE"
+destination = git.github_pr_destination(...),
+```
+
+Best for: When changes need review, or you lack push access.
+
+</TabItem>
+</Tabs>
+
+## Next Steps
+
+- [CHANGE_REQUEST in depth](/copybara-docs/workflows/change-request/)
+- [SQUASH vs ITERATIVE comparison](/copybara-docs/workflows/squash-vs-iterative/)
+- [GitHub PR destination](/copybara-docs/endpoints/github/)

@@ -1,0 +1,209 @@
+---
+title: Quick Start
+description: Create your first Copybara workflow in minutes
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Quick Start
+
+This guide walks you through creating your first Copybara workflow to sync code between repositories.
+
+## Scenario
+
+You have an internal repository with code you want to publish to GitHub:
+
+```
+internal-repo/
+├── src/
+│   ├── lib/
+│   └── internal/     # Should NOT be published
+├── docs/
+└── tests/
+```
+
+Goal: Sync `src/lib/` and `docs/` to a public GitHub repository, excluding internal code.
+
+## Step 1: Create the Configuration
+
+Create a file named `copy.bara.sky` in your repository:
+
+```starlark title="copy.bara.sky"
+# Define the sync workflow
+core.workflow(
+    name = "export",
+
+    # Source repository
+    origin = git.origin(
+        url = "https://github.com/myorg/internal-repo",
+        ref = "main",
+    ),
+
+    # Destination repository
+    destination = git.github_destination(
+        url = "https://github.com/myorg/public-repo",
+        push = "main",
+    ),
+
+    # What to sync (exclude internal code)
+    origin_files = glob(
+        include = ["src/lib/**", "docs/**"],
+        exclude = ["**/internal/**"],
+    ),
+
+    # How to handle authorship
+    authoring = authoring.pass_thru(
+        default = "Bot <bot@example.com>",
+    ),
+
+    # Transformations to apply
+    transformations = [
+        # Move src/lib to root
+        core.move("src/lib/", "src/"),
+    ],
+
+    # Combine all changes into one commit
+    mode = "SQUASH",
+)
+```
+
+## Step 2: Validate the Configuration
+
+Before running, validate the configuration:
+
+```bash
+java -jar copybara_deploy.jar validate copy.bara.sky export
+```
+
+<Aside type="tip">
+Always validate before running to catch syntax errors and configuration issues.
+</Aside>
+
+## Step 3: Run the Initial Sync
+
+For the first sync, use `--init-history` to process all existing commits:
+
+```bash
+java -jar copybara_deploy.jar migrate copy.bara.sky export --init-history
+```
+
+This will:
+1. Read all commits from the origin
+2. Apply transformations
+3. Create commits in the destination
+4. Store state for future incremental syncs
+
+## Step 4: Subsequent Syncs
+
+After the initial sync, Copybara tracks state automatically. Just run:
+
+```bash
+java -jar copybara_deploy.jar migrate copy.bara.sky export
+```
+
+Copybara will only process new commits since the last sync.
+
+## Alternative: PR-based Workflow
+
+If you don't have direct push access, use `github_pr_destination` to create PRs:
+
+```starlark title="copy.bara.sky"
+core.workflow(
+    name = "export-pr",
+
+    origin = git.origin(
+        url = "https://github.com/myorg/internal-repo",
+        ref = "main",
+    ),
+
+    # Creates PRs instead of pushing directly
+    destination = git.github_pr_destination(
+        url = "https://github.com/myorg/public-repo",
+        destination_ref = "main",
+        pr_branch = "copybara/sync-${CONTEXT_REFERENCE}",
+        title = "Sync from internal",
+    ),
+
+    origin_files = glob(["src/**"]),
+    authoring = authoring.pass_thru("Bot <bot@example.com>"),
+    mode = "SQUASH",
+)
+```
+
+<Aside type="note">
+See [CHANGE_REQUEST mode](/copybara-docs/workflows/change-request/) for detailed PR workflow documentation.
+</Aside>
+
+## Common Transformations
+
+### Remove Internal Content
+
+```starlark
+transformations = [
+    # Remove internal comments
+    core.replace(
+        before = "// INTERNAL: ${content}\n",
+        after = "",
+        regex_groups = {"content": ".*"},
+    ),
+]
+```
+
+### Replace URLs
+
+```starlark
+transformations = [
+    core.replace(
+        before = "internal.corp.com",
+        after = "api.example.com",
+    ),
+]
+```
+
+### Verify No Secrets
+
+```starlark
+transformations = [
+    core.verify_match(
+        regex = "INTERNAL_SECRET|API_KEY_\\w+",
+        verify_no_match = True,
+    ),
+]
+```
+
+## Troubleshooting
+
+### "No changes to migrate"
+
+This is normal if there are no new commits since the last sync. Use `--force` to re-sync anyway:
+
+```bash
+java -jar copybara_deploy.jar migrate copy.bara.sky export --force
+```
+
+### Authentication Errors
+
+Ensure Git credentials are configured:
+
+```bash
+# For HTTPS
+git config --global credential.helper store
+
+# For SSH
+ssh-add ~/.ssh/id_ed25519
+```
+
+### State Issues
+
+Copybara stores state in commit messages (look for `GitOrigin-RevId`). To reset:
+
+```bash
+java -jar copybara_deploy.jar migrate copy.bara.sky export --last-rev <sha>
+```
+
+## Next Steps
+
+- [Understand core concepts](/copybara-docs/getting-started/concepts/)
+- [Learn about workflow modes](/copybara-docs/workflows/modes/)
+- [Explore transformations](/copybara-docs/transformations/overview/)
+- [Set up GitHub Actions](/copybara-docs/cicd/github-actions/)

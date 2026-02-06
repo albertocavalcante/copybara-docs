@@ -1,0 +1,230 @@
+---
+title: Filtering & Verification
+description: Removing files and verifying content safety
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Filtering & Verification
+
+Control which files are synced and verify no sensitive content is leaked.
+
+## core.remove
+
+Remove files matching a pattern:
+
+```starlark
+core.remove(glob(["**/internal/**"]))
+```
+
+### Examples
+
+```starlark
+# Remove internal directories
+core.remove(glob(["**/internal/**"]))
+
+# Remove specific file types
+core.remove(glob(["**/*.bak", "**/*.tmp"]))
+
+# Remove test files
+core.remove(glob(["**/*_test.go", "**/test_*.py"]))
+
+# Remove build artifacts
+core.remove(glob([
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/__pycache__/**",
+]))
+```
+
+## origin_files vs core.remove
+
+Two ways to exclude files:
+
+### origin_files (Preferred)
+
+Files never leave the origin:
+
+```starlark
+core.workflow(
+    origin_files = glob(
+        include = ["**"],
+        exclude = ["**/internal/**"],
+    ),
+    ...
+)
+```
+
+### core.remove
+
+Files are read, then removed:
+
+```starlark
+transformations = [
+    core.remove(glob(["**/internal/**"])),
+]
+```
+
+<Aside type="tip">
+Prefer `origin_files` for performance - files are never read. Use `core.remove` when you need to remove files based on content or after other transformations.
+</Aside>
+
+## destination_files
+
+Control what Copybara can modify in the destination:
+
+```starlark
+core.workflow(
+    # Only modify files under src/
+    destination_files = glob(["src/**"]),
+    ...
+)
+```
+
+### Protect External Files
+
+```starlark
+# Don't touch manually-managed files
+destination_files = glob(
+    include = ["**"],
+    exclude = [
+        "README.md",           # External readme
+        "CONTRIBUTING.md",     # External contribution guide
+        ".github/**",          # External CI/CD
+    ],
+)
+```
+
+## core.verify_match
+
+Verify patterns exist or don't exist:
+
+### Verify No Secrets
+
+```starlark
+core.verify_match(
+    regex = "API_KEY|SECRET|PASSWORD",
+    verify_no_match = True,  # Fail if pattern is found
+)
+```
+
+### Verify Required Content
+
+```starlark
+core.verify_match(
+    regex = "Copyright.*Google",
+    paths = glob(["**/*.java"]),
+    # verify_no_match defaults to False
+    # Fails if pattern is NOT found
+)
+```
+
+### Multiple Patterns
+
+```starlark
+transformations = [
+    # Check for various secret patterns
+    core.verify_match(
+        regex = "INTERNAL_SECRET",
+        verify_no_match = True,
+    ),
+    core.verify_match(
+        regex = "@internal\\.corp\\.com",
+        verify_no_match = True,
+    ),
+    core.verify_match(
+        regex = "api-key-[a-z0-9]+",
+        verify_no_match = True,
+    ),
+]
+```
+
+## Common Secret Patterns
+
+```starlark
+# Comprehensive secret detection
+core.verify_match(
+    regex = """(?i)(
+        api[_-]?key|
+        secret[_-]?key|
+        password|
+        credential|
+        private[_-]?key|
+        access[_-]?token|
+        auth[_-]?token
+    )[\"']?\\s*[:=]\\s*[\"'][^\"']+[\"']""",
+    verify_no_match = True,
+)
+```
+
+<Aside type="caution">
+Regex patterns in Starlark need careful escaping. Test patterns before relying on them for security.
+</Aside>
+
+## Combining Filters
+
+Use multiple filtering mechanisms together:
+
+```starlark
+core.workflow(
+    # Step 1: Don't read internal files
+    origin_files = glob(
+        include = ["**"],
+        exclude = ["**/internal/**"],
+    ),
+
+    # Step 2: Don't touch external files
+    destination_files = glob(
+        include = ["**"],
+        exclude = ["README.md", ".github/**"],
+    ),
+
+    transformations = [
+        # Step 3: Remove any remaining sensitive files
+        core.remove(glob(["**/*.secret", "**/credentials.*"])),
+
+        # Step 4: Remove sensitive content
+        core.replace(
+            before = "// SECRET: ${content}\n",
+            after = "",
+            regex_groups = {"content": ".*"},
+        ),
+
+        # Step 5: Verify nothing slipped through
+        core.verify_match(
+            regex = "INTERNAL|SECRET|CONFIDENTIAL",
+            verify_no_match = True,
+        ),
+    ],
+)
+```
+
+## Error Messages
+
+When `verify_no_match` fails:
+
+```
+WARN:
+  Pattern 'API_KEY' found in file(s):
+    src/config.py:42: API_KEY = "sk-..."
+
+  Verification failed: Pattern should not match but did.
+```
+
+## Testing Filters
+
+Validate your filters locally:
+
+```bash
+# Preview what would be synced
+java -jar copybara.jar migrate copy.bara.sky workflow \
+  --folder-destination /tmp/output
+
+# Search for sensitive patterns
+grep -r "internal\|secret\|api.key" /tmp/output
+```
+
+## Next Steps
+
+- [Metadata transformations](/copybara-docs/transformations/metadata/)
+- [Custom transformations](/copybara-docs/transformations/custom/)

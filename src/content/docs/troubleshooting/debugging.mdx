@@ -1,0 +1,168 @@
+---
+title: Debugging
+description: How to debug Copybara workflows
+---
+
+# Debugging Copybara
+
+Techniques for troubleshooting workflows.
+
+## Verbose Output
+
+Increase logging verbosity:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export -v
+java -jar copybara.jar migrate copy.bara.sky export -vv  # More verbose
+```
+
+## Dry Run
+
+See what would happen without making changes:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export --dry-run
+```
+
+## Local Testing
+
+Use folder destination to preview output:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export \
+  --folder-destination /tmp/output
+```
+
+Then inspect:
+```bash
+find /tmp/output -type f
+diff -r /tmp/output expected/
+```
+
+## Validate Configuration
+
+Check config before running:
+
+```bash
+java -jar copybara.jar validate copy.bara.sky export
+```
+
+## Test Transforms
+
+Create a test workflow:
+
+```starlark
+core.workflow(
+    name = "test-transforms",
+    origin = folder.origin(),
+    destination = folder.destination(),
+    authoring = authoring.overwrite("Test <test@example.com>"),
+    transformations = [
+        # Your transforms here
+    ],
+)
+```
+
+Run locally:
+```bash
+java -jar copybara.jar migrate copy.bara.sky test-transforms \
+  --folder-origin /path/to/source \
+  --folder-destination /tmp/output
+```
+
+## Check State
+
+Find last synced commit:
+
+```bash
+# In destination repo
+git log --grep="GitOrigin-RevId" -1
+
+# Shows:
+# GitOrigin-RevId: abc123def456
+```
+
+## Debug Globs
+
+Test which files match:
+
+```starlark
+# Temporarily use very specific include
+origin_files = glob(["src/specific-file.txt"])
+```
+
+Then expand as needed.
+
+## Console Logging
+
+In dynamic transforms:
+
+```starlark
+def _my_transform(ctx):
+    ctx.console.info("Processing files...")
+    for f in ctx.run(glob(["**"])):
+        ctx.console.info("Found: " + f)
+    return ctx.success()
+```
+
+## Save Output
+
+Save console output to file:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export \
+  --console-file-path copybara.log 2>&1 | tee copybara.log
+```
+
+## Common Debug Scenarios
+
+### Check what files are included
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export \
+  --folder-destination /tmp/test
+find /tmp/test -type f
+```
+
+### Verify replacements
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export \
+  --folder-destination /tmp/test
+grep -r "old_text" /tmp/test  # Should not find
+grep -r "new_text" /tmp/test  # Should find
+```
+
+### Check commit message
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export \
+  --folder-destination /tmp/test
+cd /tmp/test
+git log -1
+```
+
+### Test regex patterns
+
+Use a regex tester or:
+
+```python
+# Python
+import re
+pattern = r"your_pattern"
+text = "your text"
+print(re.findall(pattern, text))
+```
+
+## Workflow Info
+
+Get information about a workflow:
+
+```bash
+java -jar copybara.jar info copy.bara.sky export
+```
+
+## Next Steps
+
+- [Common issues](/copybara-docs/troubleshooting/common-issues/)
+- [CLI reference](/copybara-docs/reference/cli/)

@@ -1,0 +1,181 @@
+---
+title: Workflows Overview
+description: Understanding Copybara workflows and when to use each type
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Workflows Overview
+
+A workflow is the core abstraction in Copybara. It defines the complete pipeline for moving code from one repository to another.
+
+## Workflow Types
+
+Copybara supports two main types of workflows:
+
+### 1. `core.workflow` - Code Synchronization
+
+The primary workflow type for syncing code between repositories:
+
+```starlark
+core.workflow(
+    name = "export",
+    origin = git.origin(...),
+    destination = git.destination(...),
+    transformations = [...],
+    mode = "SQUASH",
+)
+```
+
+### 2. `core.feedback` - Event Reactions
+
+A secondary workflow type for reacting to events (PRs merged, issues created, etc.):
+
+```starlark
+core.feedback(
+    name = "notify",
+    origin = git.github_trigger(...),
+    destination = git.github_api(...),
+    actions = [...],
+)
+```
+
+## Workflow Modes
+
+The `mode` parameter in `core.workflow` determines how commits are created:
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `SQUASH` | Combine all changes into one commit | Most common, clean history |
+| `ITERATIVE` | Preserve individual commits | When history matters |
+| `CHANGE_REQUEST` | Create PR/CL for review | When approval is needed |
+| `CHANGE_REQUEST_FROM_SOT` | PR from source of truth | Bidirectional sync |
+
+```starlark
+# Each mode has different behavior
+mode = "SQUASH",            # Default, recommended
+mode = "ITERATIVE",         # Preserve history
+mode = "CHANGE_REQUEST",    # Create PRs
+```
+
+<Aside type="tip">
+Start with `SQUASH` mode - it's the simplest and handles edge cases well. Move to other modes only when you have specific requirements.
+</Aside>
+
+## Workflow Anatomy
+
+A complete workflow has these components:
+
+```starlark
+core.workflow(
+    # Required
+    name = "my-workflow",           # Unique identifier
+    origin = git.origin(...),       # Where to read from
+    destination = git.destination(...),  # Where to write to
+    authoring = authoring.pass_thru(...),  # Author handling
+
+    # Optional but common
+    origin_files = glob(["src/**"]),      # What to read
+    destination_files = glob(["**"]),     # What to manage
+    transformations = [...],               # How to modify
+    mode = "SQUASH",                       # Commit strategy
+
+    # Less common
+    reversible_check = True,              # Verify transforms are reversible
+    check_last_rev_state = True,          # Validate state on each run
+    ask_for_confirmation = False,         # Interactive confirmation
+)
+```
+
+## Origin Files vs Destination Files
+
+### `origin_files`
+
+Defines what files to read from the origin:
+
+```starlark
+origin_files = glob(
+    include = ["src/**", "docs/**"],
+    exclude = ["**/internal/**"],
+)
+```
+
+### `destination_files`
+
+Defines what files Copybara is allowed to modify in the destination:
+
+```starlark
+# Only modify files under src/
+destination_files = glob(["src/**"])
+
+# Exclude manually-managed files
+destination_files = glob(
+    include = ["**"],
+    exclude = ["README.md", ".github/**"],
+)
+```
+
+<Aside type="caution">
+If a file exists in the destination but is not in `destination_files`, Copybara will not touch it - even if the origin has that file.
+</Aside>
+
+## Running Workflows
+
+### Validate Configuration
+
+```bash
+java -jar copybara.jar validate copy.bara.sky workflow_name
+```
+
+### Run Migration
+
+```bash
+# Standard run (processes new commits)
+java -jar copybara.jar migrate copy.bara.sky workflow_name
+
+# Initial sync (process all history)
+java -jar copybara.jar migrate copy.bara.sky workflow_name --init-history
+
+# Force re-sync (ignore state)
+java -jar copybara.jar migrate copy.bara.sky workflow_name --force
+
+# Start from specific commit
+java -jar copybara.jar migrate copy.bara.sky workflow_name --last-rev abc123
+```
+
+## Multiple Workflows
+
+A single config file can contain multiple workflows:
+
+```starlark
+# copy.bara.sky
+
+# Export internal code to GitHub
+core.workflow(
+    name = "export",
+    origin = git.origin(url = internal_url, ref = "main"),
+    destination = git.github_destination(url = github_url, push = "main"),
+    ...
+)
+
+# Import external contributions
+core.workflow(
+    name = "import",
+    origin = git.github_pr_origin(url = github_url, branch = "main"),
+    destination = git.gerrit_destination(url = internal_url, ...),
+    ...
+)
+```
+
+Run specific workflows by name:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky export
+java -jar copybara.jar migrate copy.bara.sky import
+```
+
+## Next Steps
+
+- [Workflow modes in detail](/copybara-docs/workflows/modes/)
+- [CHANGE_REQUEST for PR-based workflows](/copybara-docs/workflows/change-request/)
+- [SQUASH vs ITERATIVE](/copybara-docs/workflows/squash-vs-iterative/)

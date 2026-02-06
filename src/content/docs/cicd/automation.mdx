@@ -1,0 +1,334 @@
+---
+title: Automation Patterns
+description: Common patterns for automating Copybara workflows
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Automation Patterns
+
+Common patterns for running Copybara in CI/CD pipelines.
+
+## Pattern 1: On Push
+
+Sync immediately when source changes:
+
+```yaml
+name: Sync on Push
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: java -jar copybara.jar migrate copy.bara.sky export --ignore-noop
+```
+
+**Best for**: Real-time synchronization
+
+## Pattern 2: Scheduled
+
+Sync on a schedule:
+
+```yaml
+name: Scheduled Sync
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: java -jar copybara.jar migrate copy.bara.sky export --ignore-noop
+```
+
+**Best for**: Batching changes, reducing noise
+
+## Pattern 3: Manual Trigger
+
+On-demand synchronization:
+
+```yaml
+name: Manual Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      workflow:
+        description: 'Workflow to run'
+        required: true
+        default: 'export'
+        type: choice
+        options:
+          - export
+          - import
+      init_history:
+        description: 'Initialize history (first-time sync)'
+        type: boolean
+        default: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          FLAGS="--ignore-noop"
+          if [ "${{ inputs.init_history }}" = "true" ]; then
+            FLAGS="--init-history"
+          fi
+          java -jar copybara.jar migrate copy.bara.sky ${{ inputs.workflow }} $FLAGS
+```
+
+**Best for**: Controlled deployments, initial setup
+
+## Pattern 4: PR-Triggered
+
+Sync when PRs are merged:
+
+```yaml
+name: Sync on PR Merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  sync:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: java -jar copybara.jar migrate copy.bara.sky export --ignore-noop
+```
+
+**Best for**: Ensuring reviewed changes are synced
+
+## Pattern 5: Multi-Stage
+
+Validate before syncing:
+
+```yaml
+name: Validate and Sync
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: java -jar copybara.jar validate copy.bara.sky export
+
+  sync:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: java -jar copybara.jar migrate copy.bara.sky export --ignore-noop
+```
+
+**Best for**: Catching config errors early
+
+## Pattern 6: Matrix Sync
+
+Sync multiple workflows in parallel:
+
+```yaml
+name: Multi-Workflow Sync
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        workflow: [export-core, export-cli, export-docs]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: java -jar copybara.jar migrate copy.bara.sky ${{ matrix.workflow }} --ignore-noop
+```
+
+**Best for**: Monorepo extractions
+
+## Pattern 7: Conditional Sync
+
+Sync based on changed paths:
+
+```yaml
+name: Conditional Sync
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      src: ${{ steps.filter.outputs.src }}
+      docs: ${{ steps.filter.outputs.docs }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            src:
+              - 'src/**'
+            docs:
+              - 'docs/**'
+
+  sync-src:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.src == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: java -jar copybara.jar migrate copy.bara.sky export-src --ignore-noop
+
+  sync-docs:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: java -jar copybara.jar migrate copy.bara.sky export-docs --ignore-noop
+```
+
+**Best for**: Selective syncing based on changes
+
+## Pattern 8: Approval Gate
+
+Require approval before syncing:
+
+```yaml
+name: Gated Sync
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          java -jar copybara.jar migrate copy.bara.sky export \
+            --folder-destination /tmp/preview
+      - run: |
+          echo "## Preview" >> $GITHUB_STEP_SUMMARY
+          find /tmp/preview -type f | head -20 >> $GITHUB_STEP_SUMMARY
+
+  approve:
+    needs: preview
+    runs-on: ubuntu-latest
+    environment: production  # Requires approval
+    steps:
+      - run: echo "Approved!"
+
+  sync:
+    needs: approve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: java -jar copybara.jar migrate copy.bara.sky export --ignore-noop
+```
+
+**Best for**: High-risk syncs requiring human approval
+
+## Error Handling
+
+Robust error handling:
+
+```yaml
+- name: Run Copybara
+  id: copybara
+  continue-on-error: true
+  run: |
+    java -jar copybara.jar migrate copy.bara.sky export 2>&1 | tee copybara.log
+    exit ${PIPESTATUS[0]}
+
+- name: Handle result
+  run: |
+    if [ "${{ steps.copybara.outcome }}" = "success" ]; then
+      echo "Sync completed successfully"
+    elif grep -q "NOOP" copybara.log; then
+      echo "No changes to sync - this is OK"
+    else
+      echo "Sync failed!"
+      cat copybara.log
+      exit 1
+    fi
+```
+
+## Notifications
+
+Notify on sync status:
+
+```yaml
+- name: Notify on failure
+  if: failure()
+  uses: slackapi/slack-github-action@v2
+  with:
+    webhook: ${{ secrets.SLACK_WEBHOOK }}
+    payload: |
+      {
+        "text": "Copybara sync failed: ${{ github.repository }}"
+      }
+```
+
+## Concurrency Control
+
+Prevent parallel syncs:
+
+```yaml
+concurrency:
+  group: copybara-${{ github.workflow }}
+  cancel-in-progress: false  # Don't cancel running syncs
+```
+
+<Aside type="tip">
+Set `cancel-in-progress: false` to ensure syncs complete even if new commits arrive.
+</Aside>
+
+## Next Steps
+
+- [GitHub Actions setup](/copybara-docs/cicd/github-actions/)
+- [Authentication](/copybara-docs/cicd/authentication/)

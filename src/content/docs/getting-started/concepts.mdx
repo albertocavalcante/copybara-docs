@@ -1,0 +1,238 @@
+---
+title: Core Concepts
+description: Understanding the fundamental concepts of Copybara
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Core Concepts
+
+Before diving into Copybara configurations, it's important to understand the key concepts that drive how Copybara works.
+
+## Workflows
+
+A **workflow** is the fundamental unit of Copybara. It defines:
+
+- Where to read code from (origin)
+- Where to write code to (destination)
+- What transformations to apply
+- How to handle authorship and commit history
+
+```starlark
+core.workflow(
+    name = "my-workflow",           # Unique identifier
+    origin = ...,                    # Source of code
+    destination = ...,               # Target for code
+    transformations = [...],         # Changes to apply
+    authoring = ...,                 # Author handling
+    mode = "SQUASH",                 # How to create commits
+)
+```
+
+You can define multiple workflows in a single config file:
+
+```starlark
+core.workflow(name = "export", ...)   # Internal → External
+core.workflow(name = "import", ...)   # External → Internal
+```
+
+## Origins
+
+An **origin** is where Copybara reads code from. The most common origins are:
+
+| Origin | Use Case |
+|--------|----------|
+| `git.origin` | Generic Git repository |
+| `git.github_origin` | GitHub with PR/issue integration |
+| `git.github_pr_origin` | Read from GitHub PRs |
+| `git.gerrit_origin` | Gerrit with CL integration |
+| `folder.origin` | Local filesystem |
+
+```starlark
+origin = git.github_origin(
+    url = "https://github.com/org/repo",
+    ref = "main",
+)
+```
+
+## Destinations
+
+A **destination** is where Copybara writes code to:
+
+| Destination | Behavior |
+|-------------|----------|
+| `git.destination` | Push directly to a branch |
+| `git.github_destination` | Push to GitHub |
+| `git.github_pr_destination` | Create GitHub PRs |
+| `git.gerrit_destination` | Create Gerrit CLs |
+| `folder.destination` | Write to local filesystem |
+
+```starlark
+# Direct push
+destination = git.destination(
+    url = "https://github.com/org/repo",
+    push = "main",
+)
+
+# Create PRs instead
+destination = git.github_pr_destination(
+    url = "https://github.com/org/repo",
+    destination_ref = "main",
+)
+```
+
+<Aside type="tip">
+Use `github_pr_destination` when you don't have direct push access or want changes reviewed before merging.
+</Aside>
+
+## Transformations
+
+**Transformations** modify code during the sync process. They're applied in order:
+
+```starlark
+transformations = [
+    core.move("src/", ""),              # First: move files
+    core.replace("foo", "bar"),         # Then: replace text
+    core.verify_match("SECRET", ...),   # Finally: verify
+]
+```
+
+Common transformation types:
+
+| Transformation | Purpose |
+|----------------|---------|
+| `core.move` | Move/rename files or directories |
+| `core.copy` | Copy files (keep original) |
+| `core.remove` | Delete files matching a pattern |
+| `core.replace` | Text replacement (literal or regex) |
+| `core.verify_match` | Fail if pattern exists (or doesn't) |
+
+## Globs
+
+**Globs** define which files to include or exclude:
+
+```starlark
+# Include specific directories
+origin_files = glob(["src/**", "docs/**"])
+
+# Exclude internal files
+origin_files = glob(
+    include = ["**"],
+    exclude = ["**/internal/**", "**/*.secret"],
+)
+```
+
+Pattern syntax:
+- `*` matches any characters except `/`
+- `**` matches any characters including `/`
+- `?` matches a single character
+
+## Authoring
+
+**Authoring** controls how commit authors are handled:
+
+```starlark
+# Keep original authors
+authoring = authoring.pass_thru("Default <default@example.com>")
+
+# Replace all authors
+authoring = authoring.overwrite("Bot <bot@example.com>")
+
+# Allow only specific authors
+authoring = authoring.allowed(
+    default = "Bot <bot@example.com>",
+    allowlist = ["alice@example.com", "bob@example.com"],
+)
+```
+
+<Aside type="note">
+When importing external contributions, `pass_thru` preserves contributor credit.
+</Aside>
+
+## Workflow Modes
+
+The **mode** determines how commits are created in the destination:
+
+| Mode | Behavior |
+|------|----------|
+| `SQUASH` | All origin changes → one destination commit |
+| `ITERATIVE` | Preserve individual commits |
+| `CHANGE_REQUEST` | Create PR/CL for review |
+| `CHANGE_REQUEST_FROM_SOT` | PR from source of truth |
+
+```starlark
+mode = "SQUASH",  # Recommended for most workflows
+```
+
+<Aside type="tip">
+`SQUASH` is recommended for most workflows because it creates cleaner history and avoids issues with complex merge histories.
+</Aside>
+
+## State Tracking
+
+Copybara tracks **state** to know what's already been synced:
+
+1. After syncing, Copybara adds a marker to commit messages:
+   ```
+   GitOrigin-RevId: abc123def456
+   ```
+
+2. On the next run, Copybara reads this marker to find where to resume
+
+3. Only new commits since the last sync are processed
+
+### Overriding State
+
+```bash
+# Start from a specific commit
+java -jar copybara.jar migrate copy.bara.sky --last-rev abc123
+
+# Process all history (initial sync)
+java -jar copybara.jar migrate copy.bara.sky --init-history
+```
+
+## Source of Truth (SOT)
+
+The **Source of Truth** is the authoritative repository:
+
+- For **export** workflows: Internal repo is SOT
+- For **import** workflows: External repo is SOT
+
+Copybara always reads from the SOT and writes to the mirror.
+
+```
+┌─────────────────┐
+│  Internal Repo  │◀──── Source of Truth (SOT)
+│  (authoritative)│
+└────────┬────────┘
+         │
+         ▼ export
+┌─────────────────┐
+│  External Repo  │
+│  (mirror)       │
+└─────────────────┘
+```
+
+## Labels
+
+**Labels** are metadata extracted from commit messages:
+
+```starlark
+# Expose labels for use in transformations
+metadata.expose_label("TESTED_BY")
+metadata.expose_label("BUG")
+
+# Add labels to commit messages
+metadata.add_header("Synced-From: internal")
+```
+
+Labels can be used to:
+- Track relationships between commits
+- Add metadata to synced commits
+- Filter or route based on commit properties
+
+## Next Steps
+
+- [Workflow modes in depth](/copybara-docs/workflows/modes/)
+- [All transformation types](/copybara-docs/transformations/overview/)
+- [GitHub integration](/copybara-docs/endpoints/github/)

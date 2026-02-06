@@ -1,0 +1,203 @@
+---
+title: Authoring
+description: Controlling commit author information
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Authoring
+
+Authoring controls how commit author information is handled during synchronization.
+
+## authoring.pass_thru
+
+Preserve original author when possible:
+
+```starlark
+authoring = authoring.pass_thru(
+    default = "Bot <bot@example.com>",
+)
+```
+
+If the original author can be resolved, it's preserved. Otherwise, the default is used.
+
+### Example
+
+```starlark
+authoring = authoring.pass_thru(
+    default = "Sync Bot <sync@example.com>",
+)
+# Alice commits → Alice's name preserved
+# Unknown author → Sync Bot used
+```
+
+## authoring.overwrite
+
+Replace all authors with a single identity:
+
+```starlark
+authoring = authoring.overwrite(
+    "Sync Bot <sync@example.com>",
+)
+```
+
+### When to Use
+
+- When all commits should appear from a bot account
+- When original authors shouldn't be exposed
+- For automated sync workflows
+
+<Aside type="note">
+`overwrite` is useful for privacy, but loses contributor attribution.
+</Aside>
+
+## authoring.allowed
+
+Only pass through specific authors:
+
+```starlark
+authoring = authoring.allowed(
+    default = "Bot <bot@example.com>",
+    allowlist = [
+        "alice@example.com",
+        "bob@example.com",
+    ],
+)
+```
+
+### Example
+
+```starlark
+authoring = authoring.allowed(
+    default = "External Contributor <external@example.com>",
+    allowlist = [
+        "maintainer1@org.com",
+        "maintainer2@org.com",
+    ],
+)
+# maintainer1@ commits → maintainer1@ preserved
+# random@ commits → External Contributor used
+```
+
+## Author Format
+
+Authors use Git's standard format:
+
+```
+Name <email@example.com>
+```
+
+```starlark
+# Full format
+authoring = authoring.pass_thru("John Doe <john@example.com>")
+
+# Minimal
+authoring = authoring.pass_thru("bot <bot@example.com>")
+```
+
+## Common Patterns
+
+### Open Source Export
+
+Preserve contributor attribution:
+
+```starlark
+authoring = authoring.pass_thru(
+    default = "Open Source Bot <oss-bot@company.com>",
+)
+```
+
+### Import External Contributions
+
+Allow external contributors:
+
+```starlark
+authoring = authoring.allowed(
+    default = "External Contribution <external@company.com>",
+    allowlist = [
+        "*@company.com",  # Internal emails pass through
+    ],
+)
+```
+
+### Automated Sync
+
+Use bot for all commits:
+
+```starlark
+authoring = authoring.overwrite(
+    "Copybara Sync <copybara@company.com>",
+)
+```
+
+### Map Internal to External
+
+Combine with metadata transform:
+
+```starlark
+authoring = authoring.pass_thru("Bot <bot@example.com>")
+
+transformations = [
+    metadata.map_author({
+        "alice@internal.corp": "alice@public.example.com",
+        "bob@internal.corp": "bob@public.example.com",
+    }),
+]
+```
+
+## Author Mapping
+
+Use `metadata.map_author` for complex mappings:
+
+```starlark
+# In transformations
+metadata.map_author({
+    "old-email@company.com": "new-email@company.com",
+    "internal@corp.com": "external@example.com",
+})
+```
+
+## Multiple Authors (Squash)
+
+In SQUASH mode, author of the last commit is used by default.
+
+Use metadata to preserve author information:
+
+```starlark
+mode = "SQUASH"
+
+transformations = [
+    metadata.squash_notes(
+        show_author = True,  # Include authors in commit message
+    ),
+]
+```
+
+Commit message will include:
+
+```
+Sync from internal:
+- Alice <alice@example.com>: Fix bug
+- Bob <bob@example.com>: Add feature
+
+GitOrigin-RevId: abc123
+```
+
+## Verification
+
+Check author configuration:
+
+```bash
+# Preview the sync
+java -jar copybara.jar migrate copy.bara.sky workflow \
+  --folder-destination /tmp/output
+
+# Check the commit
+cd /tmp/output
+git log --format="%an <%ae>"
+```
+
+## Next Steps
+
+- [Labels & Markers](/copybara-docs/config/labels/)
+- [Metadata transformations](/copybara-docs/transformations/metadata/)

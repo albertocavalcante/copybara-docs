@@ -1,0 +1,222 @@
+---
+title: Importing Contributions
+description: Bringing external contributions back to internal repositories
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Importing External Contributions
+
+The reverse of open sourcing: importing pull requests from external contributors back to your internal repository.
+
+## The Challenge
+
+External contributions need to:
+- Be reviewed internally before integration
+- Have paths adjusted for internal structure
+- Have internal references restored
+- Preserve original authorship
+
+## Basic Import Workflow
+
+```starlark title="copy.bara.sky"
+core.workflow(
+    name = "import",
+
+    # Read from external PRs
+    origin = git.github_pr_origin(
+        url = "https://github.com/company/public-repo",
+        branch = "main",
+        required_labels = ["ready-to-import"],  # Only labeled PRs
+    ),
+
+    # Create internal change for review
+    destination = git.gerrit_destination(
+        url = "https://gerrit.internal.company.com/internal-repo",
+        fetch = "main",
+        push_to_refs_for = "main",
+    ),
+
+    # Preserve external contributor info
+    authoring = authoring.pass_thru(
+        default = "External Contributor <external@company.com>",
+    ),
+
+    transformations = [
+        # Reverse the export structure
+        core.move("docs/", "docs/public/"),
+        core.move("src/", "src/public/"),
+
+        # Restore internal URLs (reverse of export)
+        core.replace("api.company.io", "internal.company.com"),
+
+        # Preserve contribution metadata
+        metadata.expose_label("Co-authored-by"),
+        metadata.expose_label("Signed-off-by"),
+
+        # Add import tracking
+        metadata.add_header("Imported-From: github.com/company/public-repo"),
+    ],
+
+    mode = "CHANGE_REQUEST_FROM_SOT",
+)
+```
+
+## Filtering PRs
+
+Control which PRs are eligible for import:
+
+```starlark
+origin = git.github_pr_origin(
+    url = "https://github.com/company/public-repo",
+    branch = "main",
+
+    # Only PRs with this label
+    required_labels = ["ready-to-import"],
+
+    # Only merged PRs
+    state = "MERGED",
+
+    # Only if CI passed
+    required_status_context_names = ["ci/build", "ci/test"],
+)
+```
+
+## To Gerrit (Internal Code Review)
+
+```starlark
+destination = git.gerrit_destination(
+    url = "https://gerrit.internal/repo",
+    fetch = "main",
+    push_to_refs_for = "main",
+    topic = "external-contribution",
+)
+```
+
+<Aside type="note">
+`CHANGE_REQUEST_FROM_SOT` mode creates a Gerrit CL for internal review before the changes land.
+</Aside>
+
+## To GitHub (Internal Repo)
+
+```starlark
+destination = git.github_pr_destination(
+    url = "https://github.internal/repo",
+    destination_ref = "main",
+    pr_branch = "import/${CONTEXT_REFERENCE}",
+    title = "Import: ${COPYBARA_WORKFLOW_NAME}",
+    labels = ["external-contribution"],
+)
+```
+
+## Bidirectional Setup
+
+Combine export and import in one config:
+
+```starlark title="copy.bara.sky"
+INTERNAL = "https://github.com/company/internal"
+EXTERNAL = "https://github.com/company/public"
+
+# Reusable transforms with reversal
+url_transforms = core.transform(
+    transformations = [
+        core.replace("internal.company.com", "api.company.io"),
+    ],
+    reversal = [
+        core.replace("api.company.io", "internal.company.com"),
+    ],
+)
+
+# Export: internal → external
+core.workflow(
+    name = "export",
+    origin = git.github_origin(url = INTERNAL, ref = "main"),
+    destination = git.github_destination(url = EXTERNAL, push = "main"),
+    transformations = [url_transforms],
+    mode = "SQUASH",
+)
+
+# Import: external → internal
+core.workflow(
+    name = "import",
+    origin = git.github_pr_origin(url = EXTERNAL, branch = "main"),
+    destination = git.gerrit_destination(url = INTERNAL, ...),
+    transformations = [url_transforms],  # Uses reversal automatically
+    mode = "CHANGE_REQUEST_FROM_SOT",
+)
+```
+
+## Preserving Authorship
+
+External contributors should get credit:
+
+```starlark
+authoring = authoring.pass_thru(
+    default = "External <external@company.com>",
+)
+
+transformations = [
+    # Preserve co-author information
+    metadata.expose_label("Co-authored-by"),
+    metadata.expose_label("Signed-off-by"),
+]
+```
+
+## Feedback Workflow
+
+Notify when PRs are ready to import:
+
+```starlark
+core.feedback(
+    name = "notify-on-pr",
+    origin = git.github_trigger(
+        url = "https://github.com/company/public-repo",
+        events = ["pull_request"],
+    ),
+    destination = git.github_api(
+        url = "https://github.internal/internal-repo",
+    ),
+    actions = [
+        # Create internal issue when external PR is merged
+        core.action(impl = _create_import_issue),
+    ],
+)
+```
+
+## Complete Example
+
+```starlark
+# Full bidirectional workflow
+INTERNAL = "https://github.com/company/internal"
+EXTERNAL = "https://github.com/company/public"
+BOT = "Sync Bot <sync@company.com>"
+
+core.workflow(
+    name = "import-pr",
+    origin = git.github_pr_origin(
+        url = EXTERNAL,
+        branch = "main",
+        required_labels = ["approved"],
+    ),
+    destination = git.github_pr_destination(
+        url = INTERNAL,
+        destination_ref = "main",
+        pr_branch = "import/external-${CONTEXT_REFERENCE}",
+        title = "Import: External contribution",
+        labels = ["external-contribution", "needs-review"],
+    ),
+    authoring = authoring.pass_thru(BOT),
+    origin_files = glob(["src/**", "docs/**"]),
+    transformations = [
+        core.move("", "external/"),
+        metadata.expose_label("Co-authored-by"),
+        metadata.add_header("Imported-From: external repository"),
+    ],
+    mode = "SQUASH",
+)
+```
+
+## Next Steps
+
+- [Open sourcing](/copybara-docs/use-cases/open-sourcing/)
+- [Feedback workflows](/copybara-docs/workflows/feedback/)

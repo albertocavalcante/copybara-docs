@@ -1,0 +1,174 @@
+---
+title: Git Module Reference
+description: Reference for git.* functions
+---
+
+# Git Module Reference
+
+The `git` module provides Git-specific origins and destinations.
+
+## Origins
+
+### git.origin
+
+Basic Git origin:
+
+```starlark
+git.origin(
+    url = "https://...",                # Repository URL
+    ref = "main",                       # Branch/tag/commit
+    submodules = "NO",                  # "NO", "YES", "RECURSIVE"
+    first_parent = False,               # Follow first parent only
+    partial_fetch = False,              # Enable partial clone
+)
+```
+
+### git.github_origin
+
+GitHub-specific origin:
+
+```starlark
+git.github_origin(
+    url = "https://github.com/...",     # Repository URL
+    ref = "main",                       # Branch/tag/commit
+    review_state = None,                # "APPROVED", "CHANGES_REQUESTED"
+    review_approvers = [],              # List of approvers
+)
+```
+
+### git.github_pr_origin
+
+Read from GitHub PRs:
+
+```starlark
+git.github_pr_origin(
+    url = "https://github.com/...",     # Repository URL
+    branch = "main",                    # Base branch
+    state = "OPEN",                     # "OPEN", "CLOSED", "ALL"
+    required_labels = [],               # Required PR labels
+    required_status_context_names = [], # Required CI checks
+)
+```
+
+### git.gerrit_origin
+
+Gerrit origin:
+
+```starlark
+git.gerrit_origin(
+    url = "https://gerrit.../",         # Repository URL
+    ref = "refs/heads/main",            # Reference
+)
+```
+
+### git.github_trigger
+
+GitHub event trigger:
+
+```starlark
+git.github_trigger(
+    url = "https://github.com/...",     # Repository URL
+    events = ["pull_request", "push"],  # Event types
+)
+```
+
+## Destinations
+
+### git.destination
+
+Basic Git destination:
+
+```starlark
+git.destination(
+    url = "https://...",                # Repository URL
+    push = "main",                      # Branch to push
+    fetch = "main",                     # Branch to fetch (default: push)
+    tag_name = None,                    # Optional tag
+    tag_msg = None,                     # Tag message
+    skip_push = False,                  # Skip push (for testing)
+)
+```
+
+### git.github_destination
+
+GitHub destination:
+
+```starlark
+git.github_destination(
+    url = "https://github.com/...",     # Repository URL
+    push = "main",                      # Branch to push
+)
+```
+
+### git.github_pr_destination
+
+Create GitHub PRs:
+
+```starlark
+git.github_pr_destination(
+    url = "https://github.com/...",     # Repository URL
+    destination_ref = "main",           # Target branch
+    pr_branch = "sync-${REF}",          # PR branch name
+    title = "Sync",                     # PR title
+    body = "Description",               # PR body
+    draft = False,                      # Create as draft
+    update_description = True,          # Update on re-run
+    assignees = [],                     # PR assignees
+    labels = [],                        # PR labels
+)
+```
+
+### git.gerrit_destination
+
+Gerrit CL destination:
+
+```starlark
+git.gerrit_destination(
+    url = "https://gerrit.../",         # Repository URL
+    fetch = "main",                     # Fetch branch
+    push_to_refs_for = "main",          # Target branch
+    submit = False,                     # Auto-submit
+    notify = "ALL",                     # Notification level
+    topic = None,                       # CL topic
+)
+```
+
+## API Destinations
+
+### git.github_api
+
+GitHub API for feedback:
+
+```starlark
+git.github_api(
+    url = "https://github.com/...",     # Repository URL
+)
+```
+
+### git.gerrit_api
+
+Gerrit API for feedback:
+
+```starlark
+git.gerrit_api(
+    url = "https://gerrit.../",         # Gerrit URL
+)
+```
+
+## Review Input
+
+### git.review_input
+
+Gerrit review input:
+
+```starlark
+git.review_input(
+    labels = {"Code-Review": 1},        # Review labels
+    message = "LGTM",                   # Review message
+)
+```
+
+## Next Steps
+
+- [Metadata module reference](/copybara-docs/reference/metadata/)
+- [Authoring module reference](/copybara-docs/reference/authoring/)

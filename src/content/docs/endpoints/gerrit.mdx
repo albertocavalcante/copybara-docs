@@ -1,0 +1,192 @@
+---
+title: Gerrit Integration
+description: Working with Gerrit code review system
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Gerrit Integration
+
+Copybara integrates with Gerrit for organizations using Gerrit for code review.
+
+## Origins
+
+### git.gerrit_origin
+
+Read from a Gerrit repository:
+
+```starlark
+origin = git.gerrit_origin(
+    url = "https://gerrit.example.com/repo",
+    ref = "refs/heads/main",
+)
+```
+
+### Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `url` | Gerrit repository URL |
+| `ref` | Git reference to sync |
+| `change_number_url` | URL pattern for changes |
+
+## Destinations
+
+### git.gerrit_destination
+
+Create Gerrit change lists (CLs):
+
+```starlark
+destination = git.gerrit_destination(
+    url = "https://gerrit.example.com/repo",
+    fetch = "main",
+    push_to_refs_for = "main",
+)
+```
+
+### Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `url` | Gerrit repository URL |
+| `fetch` | Branch to fetch from |
+| `push_to_refs_for` | Target branch for the CL |
+| `submit` | Auto-submit if approved |
+| `notify` | Notification level |
+| `topic` | CL topic |
+| `change_id_policy` | How to handle Change-Id |
+
+### Examples
+
+```starlark
+# Basic CL creation
+destination = git.gerrit_destination(
+    url = "https://gerrit.example.com/repo",
+    fetch = "main",
+    push_to_refs_for = "main",
+)
+
+# With topic
+destination = git.gerrit_destination(
+    url = "https://gerrit.example.com/repo",
+    fetch = "main",
+    push_to_refs_for = "main",
+    topic = "copybara-sync",
+)
+
+# With notification control
+destination = git.gerrit_destination(
+    url = "https://gerrit.example.com/repo",
+    fetch = "main",
+    push_to_refs_for = "main",
+    notify = "OWNER",  # Only notify owner
+)
+```
+
+## API Integration
+
+### git.gerrit_api
+
+Interact with Gerrit API in feedback workflows:
+
+```starlark
+destination = git.gerrit_api(
+    url = "https://gerrit.example.com",
+)
+```
+
+### Actions
+
+```starlark
+def _my_action(ctx):
+    # Post a review
+    ctx.destination.post_review(
+        change_id = ctx.ref,
+        review_input = git.review_input(
+            labels = {"Code-Review": 1},
+            message = "Automated review",
+        ),
+    )
+    return ctx.success()
+```
+
+## Change-Id Handling
+
+Gerrit uses Change-Id to track changes. Copybara handles this automatically:
+
+```starlark
+destination = git.gerrit_destination(
+    url = "...",
+    change_id_policy = "REQUIRE",  # Fail if no Change-Id
+)
+```
+
+Options:
+- `"REQUIRE"` - Fail if Change-Id is missing
+- `"FAIL_IF_PRESENT"` - Fail if Change-Id exists
+- `"REUSE"` - Reuse existing Change-Id
+- `"REPLACE"` - Replace with new Change-Id
+
+## Common Patterns
+
+### Import External to Gerrit
+
+```starlark
+core.workflow(
+    name = "import",
+    origin = git.github_pr_origin(
+        url = "https://github.com/org/public-repo",
+        branch = "main",
+    ),
+    destination = git.gerrit_destination(
+        url = "https://gerrit.internal/repo",
+        fetch = "main",
+        push_to_refs_for = "main",
+    ),
+    mode = "CHANGE_REQUEST_FROM_SOT",
+    ...
+)
+```
+
+### Export Internal to External
+
+```starlark
+core.workflow(
+    name = "export",
+    origin = git.gerrit_origin(
+        url = "https://gerrit.internal/repo",
+        ref = "refs/heads/main",
+    ),
+    destination = git.github_destination(
+        url = "https://github.com/org/public-repo",
+        push = "main",
+    ),
+    mode = "SQUASH",
+    ...
+)
+```
+
+## Authentication
+
+Gerrit typically uses:
+
+- **HTTP credentials** (username + password/token)
+- **SSH keys**
+
+```bash
+# HTTP credentials
+git config --global credential.helper store
+echo "https://user:token@gerrit.example.com" > ~/.git-credentials
+
+# SSH
+ssh-add ~/.ssh/id_ed25519
+```
+
+<Aside type="note">
+For Gerrit HTTP access, you may need to generate an HTTP password in Gerrit settings.
+</Aside>
+
+## Next Steps
+
+- [GitHub integration](/copybara-docs/endpoints/github/)
+- [Workflow modes](/copybara-docs/workflows/modes/)

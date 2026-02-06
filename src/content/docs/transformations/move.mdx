@@ -1,0 +1,189 @@
+---
+title: Moving Files
+description: Restructuring file and directory layouts
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Moving Files
+
+Use `core.move` and `core.copy` to restructure files during synchronization.
+
+## core.move
+
+Move or rename files and directories:
+
+```starlark
+core.move("source_path", "destination_path")
+```
+
+### Move Directory
+
+```starlark
+# Move entire directory
+core.move("src/", "lib/")
+# src/foo.py → lib/foo.py
+# src/bar/baz.py → lib/bar/baz.py
+```
+
+### Move to Root
+
+```starlark
+# Flatten a subdirectory to root
+core.move("project/src/", "")
+# project/src/main.py → main.py
+# project/src/lib/util.py → lib/util.py
+```
+
+### Rename File
+
+```starlark
+# Rename a single file
+core.move("README.internal.md", "README.md")
+```
+
+### With Glob Filter
+
+```starlark
+# Only move matching files
+core.move("src/", "lib/", paths = glob(["**/*.py"]))
+# src/main.py → lib/main.py
+# src/config.json → stays at src/config.json
+```
+
+## core.copy
+
+Copy files (keeping originals):
+
+```starlark
+core.copy("source", "destination")
+```
+
+### Examples
+
+```starlark
+# Copy a file
+core.copy("LICENSE", "docs/LICENSE")
+
+# Copy directory
+core.copy("templates/", "examples/")
+```
+
+<Aside type="note">
+Unlike `core.move`, `core.copy` keeps the original files in place.
+</Aside>
+
+## Overwrite Behavior
+
+By default, moves fail if the destination exists:
+
+```starlark
+# Fail if destination exists
+core.move("src/", "lib/")
+
+# Overwrite if destination exists
+core.move("src/", "lib/", overwrite = True)
+```
+
+## Common Patterns
+
+### Flatten Monorepo Package
+
+```starlark
+# packages/my-lib/src/* → src/*
+core.move("packages/my-lib/", "")
+```
+
+### Restructure for Publishing
+
+```starlark
+transformations = [
+    # Move source to lib
+    core.move("src/", "lib/"),
+
+    # Move internal docs to public
+    core.move("docs/public/", "docs/"),
+
+    # Remove internal docs
+    core.remove(glob(["docs/internal/**"])),
+]
+```
+
+### Rename for Convention
+
+```starlark
+transformations = [
+    core.move("README.internal.md", "README.md"),
+    core.move("CHANGELOG.internal.md", "CHANGELOG.md"),
+]
+```
+
+### Conditional Move
+
+```starlark
+# Only move if file matches pattern
+core.move(
+    "config/",
+    "settings/",
+    paths = glob(["**/*.yaml", "**/*.yml"]),
+)
+```
+
+## Order of Operations
+
+When combining moves, order matters:
+
+```starlark
+# CORRECT: nested moves from deepest to shallowest
+transformations = [
+    core.move("a/b/c/", "x/y/z/"),
+    core.move("a/b/", "x/y/"),
+    core.move("a/", "x/"),
+]
+
+# INCORRECT: parent moved first, children paths no longer exist
+transformations = [
+    core.move("a/", "x/"),           # a/b/c/ is now x/b/c/
+    core.move("a/b/", "x/y/"),       # ERROR: a/b/ doesn't exist
+]
+```
+
+## Trailing Slashes
+
+Trailing slashes indicate directories:
+
+```starlark
+# Move directory contents
+core.move("src/", "lib/")
+# src/a.py → lib/a.py
+
+# Move directory itself (rename)
+core.move("src", "lib")
+# src → lib (same effect for directories)
+
+# Move file
+core.move("src/main.py", "lib/app.py")
+# src/main.py → lib/app.py
+```
+
+<Aside type="tip">
+Use trailing slashes for directories to be explicit about intent.
+</Aside>
+
+## Debugging Moves
+
+Test with folder destination:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky test \
+  --folder-origin /path/to/source \
+  --folder-destination /tmp/output
+
+# Check the structure
+find /tmp/output -type f
+```
+
+## Next Steps
+
+- [Text replacement](/copybara-docs/transformations/replace/)
+- [Filtering files](/copybara-docs/transformations/filter/)

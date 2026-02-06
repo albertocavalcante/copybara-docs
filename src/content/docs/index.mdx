@@ -1,0 +1,75 @@
+---
+title: Copybara Documentation
+description: Comprehensive documentation for Google Copybara - transform and move code between repositories
+template: splash
+hero:
+  tagline: Transform and sync code between repositories with powerful configuration
+  image:
+    file: ../../assets/houston.webp
+  actions:
+    - text: Get Started
+      link: /copybara-docs/getting-started/introduction/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/google/copybara
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## What is Copybara?
+
+Copybara is Google's tool for **transforming and moving code between repositories**. It enables workflows like:
+
+- **Open sourcing** internal code to public repositories
+- **Importing contributions** from external repos back to internal
+- **Mirroring** repositories with transformations
+- **Syncing** subsets of monorepos to standalone repositories
+
+<CardGrid stagger>
+	<Card title="Workflows" icon="setting">
+		Learn about [SQUASH, ITERATIVE, and CHANGE_REQUEST](/copybara-docs/workflows/overview/) modes for different sync scenarios.
+	</Card>
+	<Card title="Transformations" icon="pencil">
+		[Move files, replace text, filter content](/copybara-docs/transformations/overview/), and verify no secrets are leaked.
+	</Card>
+	<Card title="GitHub Integration" icon="github">
+		Create [pull requests automatically](/copybara-docs/endpoints/github/) instead of direct pushes.
+	</Card>
+	<Card title="CI/CD" icon="rocket">
+		Run Copybara in [GitHub Actions](/copybara-docs/cicd/github-actions/) with automated triggers.
+	</Card>
+</CardGrid>
+
+## Quick Example
+
+```starlark title="copy.bara.sky"
+core.workflow(
+    name = "export-to-github",
+    origin = git.origin(
+        url = "https://internal.git/repo",
+        ref = "main",
+    ),
+    destination = git.github_pr_destination(
+        url = "https://github.com/org/public-repo",
+        destination_ref = "main",
+    ),
+    origin_files = glob(["src/**"], exclude = ["**/internal/**"]),
+    transformations = [
+        core.move("src/", ""),
+        core.replace("internal.corp", "example.com"),
+    ],
+    mode = "SQUASH",
+)
+```
+
+## Why Copybara?
+
+| Feature | Benefit |
+|---------|---------|
+| **Declarative config** | Define what you want, not how to do it |
+| **Bidirectional** | Export and import between any repositories |
+| **Transformations** | Modify paths, content, and metadata during sync |
+| **State tracking** | Automatically tracks what's been synced |
+| **PR-based** | Create PRs instead of direct pushes |

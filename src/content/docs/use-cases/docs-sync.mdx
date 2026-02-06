@@ -1,0 +1,317 @@
+---
+title: Documentation Sync
+description: Syncing documentation between internal and customer-facing repositories
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Documentation Sync
+
+A common use case: syncing customer-facing documentation from an internal repository to a public documentation site.
+
+## The Challenge
+
+- Internal repo is the source of truth
+- Only customer-facing docs should be public
+- Internal references must be removed
+- Changes must go through PR review
+- No direct push access to destination
+
+## Basic Docs Sync
+
+```starlark title="copy.bara.sky"
+core.workflow(
+    name = "sync-customer-docs",
+
+    origin = git.github_origin(
+        url = "https://github.com/company/internal-repo",
+        ref = "main",
+    ),
+
+    # Create PRs instead of pushing directly
+    destination = git.github_pr_destination(
+        url = "https://github.com/company/customer-docs",
+        destination_ref = "main",
+        pr_branch = "copybara/docs-sync-${CONTEXT_REFERENCE}",
+        title = "docs: sync from internal",
+        body = "Automated documentation sync.",
+    ),
+
+    # Only sync customer-facing docs
+    origin_files = glob(
+        include = ["docs/public/**", "docs/customer/**"],
+        exclude = [
+            "**/internal/**",
+            "**/*.draft.md",
+            "**/INTERNAL_*.md",
+        ],
+    ),
+
+    # Don't touch destination-specific files
+    destination_files = glob(
+        include = ["**"],
+        exclude = [
+            "README.md",
+            "CONTRIBUTING.md",
+            ".github/**",
+        ],
+    ),
+
+    authoring = authoring.pass_thru("Docs Bot <docs@company.com>"),
+
+    transformations = [
+        # Flatten structure
+        core.move("docs/public/", ""),
+        core.move("docs/customer/", ""),
+
+        # Replace internal URLs
+        core.replace(
+            before = "internal.company.com",
+            after = "docs.company.io",
+            paths = glob(["**/*.md", "**/*.mdx"]),
+        ),
+
+        # Remove internal notes
+        core.replace(
+            before = "<!-- INTERNAL: ${content} -->",
+            after = "",
+            regex_groups = {"content": "[\\s\\S]*?"},
+            multiline = True,
+        ),
+
+        # Remove internal-only sections
+        core.replace(
+            before = "<!-- BEGIN INTERNAL -->\n${content}<!-- END INTERNAL -->\n",
+            after = "",
+            regex_groups = {"content": "[\\s\\S]*?"},
+            multiline = True,
+        ),
+
+        # Verify no internal content leaked
+        core.verify_match(
+            regex = "INTERNAL|@internal\\.company|corp\\.local",
+            verify_no_match = True,
+        ),
+
+        # Add sync metadata
+        metadata.add_header("Synced from internal documentation"),
+    ],
+
+    mode = "SQUASH",
+)
+```
+
+## GitHub Actions Trigger
+
+Run on docs changes:
+
+```yaml title=".github/workflows/sync-docs.yml"
+name: Sync Customer Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/public/**'
+      - 'docs/customer/**'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Download Copybara
+        run: |
+          curl -fsSL -o copybara.jar \
+            https://github.com/google/copybara/releases/download/v20251215/copybara_deploy.jar
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global credential.helper store
+          echo "https://x-access-token:${{ secrets.DOCS_SYNC_PAT }}@github.com" > ~/.git-credentials
+
+      - name: Run Copybara
+        run: |
+          java -jar copybara.jar migrate copy.bara.sky sync-customer-docs --ignore-noop
+```
+
+## Marking Internal Content
+
+Use markers in your source docs:
+
+```markdown
+# Public Feature Guide
+
+This is visible to customers.
+
+<!-- INTERNAL: This note is for internal team only -->
+
+## Usage
+
+Public usage instructions here.
+
+<!-- BEGIN INTERNAL -->
+### Internal Debug Mode
+
+This section is stripped during sync.
+<!-- END INTERNAL -->
+
+## Support
+
+Contact support@company.io for help.
+```
+
+After sync, internal markers are removed:
+
+```markdown
+# Public Feature Guide
+
+This is visible to customers.
+
+## Usage
+
+Public usage instructions here.
+
+## Support
+
+Contact support@company.io for help.
+```
+
+## Image Handling
+
+Handle image references:
+
+```starlark
+transformations = [
+    # Move images
+    core.move("docs/public/", ""),
+
+    # Update image paths
+    core.replace(
+        before = "](/docs/public/images/",
+        after = "](/images/",
+        paths = glob(["**/*.md"]),
+    ),
+]
+```
+
+## Multiple Doc Sites
+
+Sync to multiple destinations:
+
+```starlark
+def sync_docs(name, dest_url, source_dir):
+    return core.workflow(
+        name = "sync-" + name,
+        origin = git.github_origin(url = INTERNAL, ref = "main"),
+        destination = git.github_pr_destination(
+            url = dest_url,
+            destination_ref = "main",
+        ),
+        origin_files = glob([source_dir + "/**"]),
+        transformations = [
+            core.move(source_dir + "/", ""),
+        ],
+        ...
+    )
+
+sync_docs("api-docs", "https://github.com/company/api-docs", "docs/api")
+sync_docs("guides", "https://github.com/company/guides", "docs/guides")
+sync_docs("tutorials", "https://github.com/company/tutorials", "docs/tutorials")
+```
+
+## Handling Frontmatter
+
+Update YAML frontmatter:
+
+```starlark
+# Remove internal-only frontmatter fields
+core.replace(
+    before = "internal_only: true\n",
+    after = "",
+    paths = glob(["**/*.md", "**/*.mdx"]),
+)
+
+# Update base URL
+core.replace(
+    before = "base_url: /internal/",
+    after = "base_url: /",
+    paths = glob(["**/*.md", "**/*.mdx"]),
+)
+```
+
+<Aside type="tip">
+For complex frontmatter manipulation, consider pre-processing with a script before Copybara runs.
+</Aside>
+
+## Complete Workflow
+
+```starlark
+INTERNAL = "https://github.com/company/internal"
+DOCS_SITE = "https://github.com/company/docs-site"
+
+core.workflow(
+    name = "sync-docs",
+    origin = git.github_origin(url = INTERNAL, ref = "main"),
+    destination = git.github_pr_destination(
+        url = DOCS_SITE,
+        destination_ref = "main",
+        pr_branch = "sync/docs-${CONTEXT_REFERENCE}",
+        title = "docs: automated sync",
+        body = """\
+## Documentation Sync
+
+Automated sync from internal repository.
+
+**Source commit**: ${COPYBARA_CONTEXT_REFERENCE}
+
+Please review and merge.
+""",
+        labels = ["documentation", "automated"],
+    ),
+    origin_files = glob(
+        include = ["docs/public/**"],
+        exclude = ["**/internal/**", "**/*.draft.md"],
+    ),
+    destination_files = glob(
+        include = ["docs/**"],
+        exclude = ["docs/external-only/**"],
+    ),
+    authoring = authoring.overwrite("Docs Bot <docs@company.com>"),
+    transformations = [
+        core.move("docs/public/", "docs/"),
+        core.replace("internal.company.com", "docs.company.io"),
+        core.replace(
+            before = "<!-- INTERNAL[\\s\\S]*?-->",
+            after = "",
+            multiline = True,
+        ),
+        core.verify_match(
+            regex = "INTERNAL|CONFIDENTIAL",
+            verify_no_match = True,
+        ),
+        metadata.squash_notes(
+            prefix = "Docs sync:\n",
+            show_description = True,
+        ),
+    ],
+    mode = "SQUASH",
+)
+```
+
+## Next Steps
+
+- [GitHub Actions setup](/copybara-docs/cicd/github-actions/)
+- [CHANGE_REQUEST mode](/copybara-docs/workflows/change-request/)

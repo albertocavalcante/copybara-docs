@@ -1,0 +1,149 @@
+---
+title: Folder Origin & Destination
+description: Local filesystem operations for testing and development
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Folder Origin & Destination
+
+Folder-based origins and destinations work with the local filesystem, useful for testing and development.
+
+## folder.origin
+
+Read from a local directory:
+
+```starlark
+origin = folder.origin()
+```
+
+### Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `materialize_outside_symlinks` | Handle symlinks pointing outside |
+
+### Usage
+
+```bash
+# Run with local folder
+java -jar copybara.jar migrate copy.bara.sky workflow --folder-origin /path/to/source
+```
+
+<Aside type="tip">
+The source path is provided via CLI, not in the config. This makes configs portable.
+</Aside>
+
+## folder.destination
+
+Write to a local directory:
+
+```starlark
+destination = folder.destination()
+```
+
+### Usage
+
+```bash
+# Run with local destination
+java -jar copybara.jar migrate copy.bara.sky workflow --folder-destination /path/to/output
+```
+
+## Testing Workflows
+
+Use folder origin/destination to test transformations locally:
+
+```starlark title="test.bara.sky"
+core.workflow(
+    name = "test",
+    origin = folder.origin(),
+    destination = folder.destination(),
+    authoring = authoring.overwrite("Test <test@example.com>"),
+    transformations = [
+        core.move("src/", "lib/"),
+        core.replace("old", "new"),
+    ],
+)
+```
+
+```bash
+# Test the workflow
+java -jar copybara.jar migrate test.bara.sky test \
+  --folder-origin /path/to/source \
+  --folder-destination /tmp/output
+
+# Inspect the output
+ls /tmp/output
+```
+
+## Development Workflow
+
+A common pattern during development:
+
+1. **Create test workflow**:
+   ```starlark
+   core.workflow(
+       name = "test-local",
+       origin = folder.origin(),
+       destination = folder.destination(),
+       ...
+   )
+   ```
+
+2. **Test locally**:
+   ```bash
+   java -jar copybara.jar migrate copy.bara.sky test-local \
+     --folder-origin . \
+     --folder-destination /tmp/test
+   ```
+
+3. **Verify output**:
+   ```bash
+   diff -r /tmp/test expected/
+   ```
+
+4. **Switch to Git when ready**:
+   ```starlark
+   core.workflow(
+       name = "production",
+       origin = git.origin(...),
+       destination = git.destination(...),
+       ...
+   )
+   ```
+
+## Preview Mode
+
+Use folder destination to preview what Copybara would produce:
+
+```starlark
+# Same transformations, different destination
+core.workflow(
+    name = "preview",
+    origin = git.origin(url = "...", ref = "main"),
+    destination = folder.destination(),  # Local output
+    transformations = [...],
+)
+```
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky preview \
+  --folder-destination /tmp/preview
+
+# Review the output before running production workflow
+```
+
+## Limitations
+
+- **No state tracking**: Folder operations don't track what's been synced
+- **No Git history**: Output is just files, no commits
+- **CLI paths**: Source/destination paths must be provided via CLI
+
+<Aside type="note">
+Folder operations are primarily for testing and development. Use Git origins/destinations for production workflows.
+</Aside>
+
+## Next Steps
+
+- [Git origins](/copybara-docs/endpoints/git-origins/)
+- [Transformations](/copybara-docs/transformations/overview/)

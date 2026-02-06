@@ -1,0 +1,189 @@
+---
+title: Common Issues
+description: Solutions to frequently encountered problems
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Common Issues
+
+Solutions to frequently encountered Copybara problems.
+
+## "No changes to migrate"
+
+**Cause**: No new commits since last sync.
+
+**Solutions**:
+
+1. Use `--ignore-noop` to not fail:
+   ```bash
+   java -jar copybara.jar migrate copy.bara.sky export --ignore-noop
+   ```
+
+2. Force re-sync:
+   ```bash
+   java -jar copybara.jar migrate copy.bara.sky export --force
+   ```
+
+3. Start from specific commit:
+   ```bash
+   java -jar copybara.jar migrate copy.bara.sky export --last-rev abc123
+   ```
+
+## Authentication Failed
+
+**Cause**: Invalid or missing credentials.
+
+**Check credentials**:
+```bash
+# Test Git access
+git ls-remote https://github.com/org/repo
+
+# Check stored credentials
+cat ~/.git-credentials
+```
+
+**Fix for HTTPS**:
+```bash
+git config --global credential.helper store
+echo "https://x-access-token:${TOKEN}@github.com" > ~/.git-credentials
+```
+
+**Fix for SSH**:
+```bash
+ssh-add ~/.ssh/id_ed25519
+ssh -T git@github.com
+```
+
+## Permission Denied
+
+**Cause**: Token lacks required permissions.
+
+**For GitHub**:
+- Classic PAT: needs `repo` scope
+- Fine-grained: needs Contents (RW), Pull requests (RW)
+
+**For PRs**:
+- Verify you have write access to destination repo
+- Check branch protection rules
+
+## Configuration Errors
+
+### "Unknown field"
+
+```
+Error: Unknown field 'unknown_field' in core.workflow
+```
+
+**Fix**: Check spelling, consult documentation for valid fields.
+
+### "Missing required field"
+
+```
+Error: Missing required field 'authoring' in core.workflow
+```
+
+**Fix**: Add the required field:
+```starlark
+authoring = authoring.pass_thru("Bot <bot@example.com>"),
+```
+
+### "Invalid glob pattern"
+
+```
+Error: Invalid glob pattern: [**
+```
+
+**Fix**: Ensure patterns are valid:
+```starlark
+glob(["**"])  # Correct
+glob("[**")   # Invalid
+```
+
+## State Issues
+
+### Wrong state / duplicate syncs
+
+**Cause**: GitOrigin-RevId mismatch.
+
+**Check current state**:
+```bash
+git log --grep="GitOrigin-RevId" -1
+```
+
+**Reset state**:
+```bash
+java -jar copybara.jar migrate copy.bara.sky export --last-rev <known-good-sha>
+```
+
+### Missing GitOrigin-RevId
+
+**Cause**: Manual commits in destination without marker.
+
+**Fix**: Use `--last-rev` to specify starting point.
+
+## Transform Errors
+
+### "Pattern not found"
+
+```
+Error: Pattern 'old_text' not found
+```
+
+**Cause**: `core.replace` pattern doesn't match anything.
+
+**Fix**: Verify pattern exists in source files or add error handling.
+
+### "verify_match failed"
+
+```
+Error: Pattern 'SECRET' found in files
+```
+
+**Cause**: `verify_no_match = True` but pattern was found.
+
+**Fix**: Remove the sensitive content from source or adjust pattern.
+
+## PR Destination Issues
+
+### "Branch already exists"
+
+**Cause**: Previous sync branch wasn't cleaned up.
+
+**Fix**: Delete the branch and retry:
+```bash
+git push origin --delete copybara/sync-xyz
+```
+
+### "PR already exists"
+
+This is normal - Copybara updates existing PRs.
+
+<Aside type="tip">
+Copybara reuses PR branches. If you need a fresh PR, delete the branch first.
+</Aside>
+
+## Performance Issues
+
+### Slow initial sync
+
+**Cause**: Processing entire history.
+
+**Fix**: Use `--last-rev` to start from recent commit:
+```bash
+java -jar copybara.jar migrate copy.bara.sky export --last-rev HEAD~100
+```
+
+### Memory issues
+
+**Cause**: Large repository or many files.
+
+**Fix**: Increase Java heap:
+```bash
+java -Xmx4g -jar copybara.jar migrate copy.bara.sky export
+```
+
+## Next Steps
+
+- [Debugging guide](/copybara-docs/troubleshooting/debugging/)
+- [CLI reference](/copybara-docs/reference/cli/)

@@ -1,0 +1,157 @@
+---
+title: Origins & Destinations Overview
+description: Understanding where Copybara reads from and writes to
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Origins & Destinations
+
+Copybara's architecture is based on **origins** (where code comes from) and **destinations** (where code goes to).
+
+## Architecture
+
+```
+┌─────────────────┐         ┌──────────────┐         ┌─────────────────┐
+│     ORIGIN      │────────▶│   Copybara   │────────▶│  DESTINATION    │
+│  (read code)    │         │  (transform) │         │  (write code)   │
+└─────────────────┘         └──────────────┘         └─────────────────┘
+```
+
+## Available Origins
+
+| Origin | Description | Use Case |
+|--------|-------------|----------|
+| `git.origin` | Generic Git repository | Any Git repo |
+| `git.github_origin` | GitHub with API integration | GitHub repos |
+| `git.github_pr_origin` | GitHub pull requests | Importing PRs |
+| `git.gerrit_origin` | Gerrit with CL integration | Gerrit repos |
+| `git.github_trigger` | GitHub events | Feedback workflows |
+| `folder.origin` | Local filesystem | Testing, local ops |
+
+## Available Destinations
+
+| Destination | Behavior | Use Case |
+|-------------|----------|----------|
+| `git.destination` | Push to branch | Direct sync |
+| `git.github_destination` | Push to GitHub | GitHub repos |
+| `git.github_pr_destination` | Create GitHub PRs | PR-based sync |
+| `git.gerrit_destination` | Create Gerrit CLs | Gerrit repos |
+| `git.github_api` | GitHub API actions | Feedback workflows |
+| `folder.destination` | Local filesystem | Testing, preview |
+
+## Choosing an Origin
+
+### For Regular Syncs
+
+```starlark
+# Generic Git
+origin = git.origin(
+    url = "https://github.com/org/repo",
+    ref = "main",
+)
+
+# GitHub with extra features
+origin = git.github_origin(
+    url = "https://github.com/org/repo",
+    ref = "main",
+)
+```
+
+### For Importing PRs
+
+```starlark
+origin = git.github_pr_origin(
+    url = "https://github.com/org/repo",
+    branch = "main",
+)
+```
+
+### For Testing
+
+```starlark
+origin = folder.origin()
+```
+
+## Choosing a Destination
+
+### Direct Push
+
+```starlark
+destination = git.destination(
+    url = "https://github.com/org/repo",
+    push = "main",
+)
+```
+
+### Create PRs
+
+```starlark
+destination = git.github_pr_destination(
+    url = "https://github.com/org/repo",
+    destination_ref = "main",
+)
+```
+
+### Create Gerrit CLs
+
+```starlark
+destination = git.gerrit_destination(
+    url = "https://gerrit.example.com/repo",
+    push_to_refs_for = "main",
+)
+```
+
+### Testing Locally
+
+```starlark
+destination = folder.destination()
+```
+
+<Aside type="tip">
+Use `folder.destination()` during development to preview what Copybara would produce without actually pushing anywhere.
+</Aside>
+
+## Common Patterns
+
+### Internal → GitHub (Open Sourcing)
+
+```starlark
+origin = git.origin(url = internal_url, ref = "main")
+destination = git.github_destination(url = github_url, push = "main")
+```
+
+### GitHub → Internal (Importing)
+
+```starlark
+origin = git.github_pr_origin(url = github_url, branch = "main")
+destination = git.gerrit_destination(url = internal_url, ...)
+```
+
+### Internal → GitHub via PR
+
+```starlark
+origin = git.origin(url = internal_url, ref = "main")
+destination = git.github_pr_destination(url = github_url, destination_ref = "main")
+```
+
+### Local Testing
+
+```starlark
+origin = folder.origin()
+destination = folder.destination()
+```
+
+## Authentication
+
+See [Authentication guide](/copybara-docs/cicd/authentication/) for details on:
+- Personal Access Tokens
+- SSH keys
+- Deploy keys
+- Fine-grained tokens
+
+## Next Steps
+
+- [Git origins in detail](/copybara-docs/endpoints/git-origins/)
+- [Git destinations in detail](/copybara-docs/endpoints/git-destinations/)
+- [GitHub integration](/copybara-docs/endpoints/github/)

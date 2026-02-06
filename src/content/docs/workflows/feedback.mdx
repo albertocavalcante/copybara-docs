@@ -1,0 +1,238 @@
+---
+title: Feedback Workflows
+description: Reacting to events like PR merges and issue creation
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Feedback Workflows
+
+Feedback workflows react to events in a repository (like PRs being merged or issues being created) and perform actions in response.
+
+## Overview
+
+Unlike `core.workflow` which synchronizes code, `core.feedback` triggers actions based on repository events.
+
+```starlark
+core.feedback(
+    name = "notify-on-merge",
+    origin = git.github_trigger(...),
+    destination = git.github_api(...),
+    actions = [...],
+)
+```
+
+## Use Cases
+
+- Notify internal systems when external PRs are merged
+- Create tracking issues when code is synced
+- Update labels or milestones automatically
+- Post comments on related PRs/issues
+- Trigger downstream workflows
+
+## GitHub Trigger Origin
+
+Listen to GitHub events:
+
+```starlark
+origin = git.github_trigger(
+    url = "https://github.com/org/repo",
+    events = ["pull_request", "push"],
+)
+```
+
+### Supported Events
+
+| Event | Trigger |
+|-------|---------|
+| `pull_request` | PR opened, closed, merged, etc. |
+| `push` | Commits pushed to a branch |
+| `issue` | Issue opened, closed, etc. |
+| `issue_comment` | Comment on issue or PR |
+
+## GitHub API Destination
+
+Perform actions via the GitHub API:
+
+```starlark
+destination = git.github_api(
+    url = "https://github.com/org/internal-repo",
+)
+```
+
+## Custom Actions
+
+Define actions using Starlark functions:
+
+```starlark
+def _notify_internal(ctx):
+    """Notify internal team when external PR is merged."""
+    for change in ctx.origin.get_changes():
+        if change.labels.get("merged"):
+            ctx.destination.create_issue(
+                title = "External contribution merged: " + change.ref,
+                body = "PR " + change.ref + " was merged. Please sync.",
+            )
+    return ctx.success()
+
+core.action(
+    impl = _notify_internal,
+    params = {},
+)
+```
+
+## Complete Example
+
+```starlark title="copy.bara.sky"
+# Workflow to notify when external PRs are merged
+core.feedback(
+    name = "notify-on-external-merge",
+
+    origin = git.github_trigger(
+        url = "https://github.com/myorg/public-repo",
+        events = ["pull_request"],
+    ),
+
+    destination = git.github_api(
+        url = "https://github.com/myorg/internal-repo",
+    ),
+
+    actions = [
+        core.action(
+            impl = _handle_pr_event,
+            params = {},
+        ),
+    ],
+)
+
+def _handle_pr_event(ctx):
+    for pr in ctx.origin.get_pull_requests():
+        if pr.merged:
+            # Create an issue in the internal repo
+            ctx.destination.create_issue(
+                title = "[External] PR merged: " + pr.title,
+                body = """\
+An external contribution was merged.
+
+**PR**: """ + pr.url + """
+**Author**: """ + pr.author + """
+**Description**: """ + pr.body + """
+
+Please run Copybara to import these changes.
+""",
+                labels = ["external-contribution", "needs-import"],
+            )
+
+            ctx.console.info("Created issue for PR: " + pr.number)
+
+    return ctx.success()
+```
+
+## Action Context
+
+The `ctx` object provides:
+
+| Property | Description |
+|----------|-------------|
+| `ctx.origin` | Access to origin events/data |
+| `ctx.destination` | API to perform actions |
+| `ctx.console` | Logging methods (`info`, `warn`, `error`) |
+| `ctx.success()` | Return successful result |
+| `ctx.noop(msg)` | Return no-op result |
+| `ctx.error(msg)` | Return error result |
+
+## Origin Methods
+
+```starlark
+# Get all changes/events
+changes = ctx.origin.get_changes()
+
+# Get pull requests
+prs = ctx.origin.get_pull_requests()
+
+# Access event data
+for change in changes:
+    ref = change.ref
+    labels = change.labels
+    author = change.author
+```
+
+## Destination Methods
+
+```starlark
+# Create an issue
+ctx.destination.create_issue(
+    title = "Issue title",
+    body = "Issue body",
+    labels = ["label1", "label2"],
+    assignees = ["user1"],
+)
+
+# Add a comment
+ctx.destination.add_comment(
+    number = 123,  # Issue or PR number
+    body = "Comment text",
+)
+
+# Update labels
+ctx.destination.add_labels(
+    number = 123,
+    labels = ["reviewed"],
+)
+```
+
+## Running Feedback Workflows
+
+```bash
+# Validate
+java -jar copybara.jar validate copy.bara.sky notify-on-external-merge
+
+# Run (typically triggered by webhooks in CI)
+java -jar copybara.jar feedback copy.bara.sky notify-on-external-merge
+```
+
+<Aside type="note">
+Feedback workflows are typically triggered by CI/CD systems in response to webhooks, not run manually.
+</Aside>
+
+## Webhook Integration
+
+Set up a GitHub webhook to trigger the feedback workflow:
+
+1. Go to repo Settings → Webhooks
+2. Add webhook URL pointing to your CI
+3. Select events (e.g., "Pull requests")
+4. CI runs Copybara feedback workflow on webhook
+
+## Combining with Sync Workflows
+
+A common pattern:
+
+1. External contributor opens PR on public repo
+2. PR gets merged
+3. **Feedback workflow** creates internal issue
+4. Team reviews and approves import
+5. **Sync workflow** (`import`) runs to bring changes internal
+
+```starlark
+# Feedback: notify on merge
+core.feedback(
+    name = "notify-on-merge",
+    origin = git.github_trigger(url = public_url, events = ["pull_request"]),
+    ...
+)
+
+# Sync: import external contributions
+core.workflow(
+    name = "import",
+    origin = git.github_pr_origin(url = public_url, branch = "main"),
+    destination = git.gerrit_destination(url = internal_url, ...),
+    mode = "CHANGE_REQUEST_FROM_SOT",
+    ...
+)
+```
+
+## Next Steps
+
+- [GitHub integration](/copybara-docs/endpoints/github/)
+- [Gerrit integration](/copybara-docs/endpoints/gerrit/)

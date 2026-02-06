@@ -1,0 +1,209 @@
+---
+title: Custom Transformations
+description: Building reversible and complex transformations
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Custom Transformations
+
+For complex scenarios, Copybara supports custom transformations with reversal logic.
+
+## core.transform
+
+Wrap transformations with explicit reversal:
+
+```starlark
+core.transform(
+    transformations = [
+        core.move("src/", "lib/"),
+        core.replace("old", "new"),
+    ],
+    reversal = [
+        core.replace("new", "old"),
+        core.move("lib/", "src/"),
+    ],
+)
+```
+
+### Why Reversal?
+
+Reversal is needed for bidirectional workflows:
+
+```
+Export:  internal → external (apply transformations)
+Import:  external → internal (apply reversal)
+```
+
+### Example: URL Transform
+
+```starlark
+core.transform(
+    transformations = [
+        core.replace("internal.corp.com", "api.example.com"),
+    ],
+    reversal = [
+        core.replace("api.example.com", "internal.corp.com"),
+    ],
+)
+```
+
+## Checking Reversibility
+
+Enable reversibility checking:
+
+```starlark
+core.workflow(
+    reversible_check = True,  # Fail if transforms aren't reversible
+    ...
+)
+```
+
+<Aside type="note">
+Not all transformations are reversible. `core.remove` and some replacements can't be reversed.
+</Aside>
+
+## Dynamic Transformations
+
+Use Starlark functions for dynamic behavior:
+
+```starlark
+def _dynamic_transform(ctx):
+    for f in ctx.run(glob(["**/*.md"])):
+        content = ctx.read_path(f)
+        if "DEPRECATED" in content:
+            ctx.write_path(f, content.replace("DEPRECATED", "LEGACY"))
+    return ctx.success()
+
+core.dynamic_transform(
+    impl = _dynamic_transform,
+)
+```
+
+### Context Methods
+
+| Method | Description |
+|--------|-------------|
+| `ctx.run(glob)` | Get matching files |
+| `ctx.read_path(path)` | Read file contents |
+| `ctx.write_path(path, content)` | Write file contents |
+| `ctx.success()` | Return success |
+| `ctx.noop(msg)` | Return no-op |
+| `ctx.error(msg)` | Return error |
+
+## Conditional Transformations
+
+Apply transformations conditionally:
+
+```starlark
+def _conditional_transform(ctx):
+    # Only transform if certain file exists
+    if ctx.run(glob(["config.json"])):
+        ctx.run(core.replace("dev", "prod"))
+    return ctx.success()
+```
+
+## Non-Reversible Transforms
+
+Some operations can't be reversed:
+
+```starlark
+# These are NOT reversible:
+core.remove(glob(["**/*.tmp"]))  # Files are gone
+core.replace("secret", "***")    # Original value lost
+
+# Mark as not reversible
+core.workflow(
+    reversible_check = False,  # Don't check reversibility
+    ...
+)
+```
+
+## Transform Sequences
+
+Use `core.transform` to group related operations:
+
+```starlark
+# Group related URL transformations
+url_transforms = core.transform(
+    transformations = [
+        core.replace("internal.corp/repo", "github.com/org/repo"),
+        core.replace("internal.corp/docs", "docs.example.com"),
+    ],
+    reversal = [
+        core.replace("github.com/org/repo", "internal.corp/repo"),
+        core.replace("docs.example.com", "internal.corp/docs"),
+    ],
+)
+
+# Group related path transformations
+path_transforms = core.transform(
+    transformations = [
+        core.move("internal/src/", "src/"),
+    ],
+    reversal = [
+        core.move("src/", "internal/src/"),
+    ],
+)
+
+# Use in workflow
+transformations = [
+    url_transforms,
+    path_transforms,
+]
+```
+
+## Variables in Starlark
+
+Use variables for reusability:
+
+```starlark
+# Define once
+INTERNAL_HOST = "internal.corp.com"
+PUBLIC_HOST = "api.example.com"
+
+# Use in transforms
+transformations = [
+    core.replace(INTERNAL_HOST, PUBLIC_HOST),
+]
+```
+
+## Complete Bidirectional Example
+
+```starlark
+# Reusable transform definitions
+export_transforms = core.transform(
+    transformations = [
+        core.move("internal/src/", "src/"),
+        core.remove(glob(["**/internal/**"])),
+        core.replace("internal.corp.com", "api.example.com"),
+    ],
+    reversal = [
+        core.replace("api.example.com", "internal.corp.com"),
+        core.move("src/", "internal/src/"),
+    ],
+)
+
+# Export workflow
+core.workflow(
+    name = "export",
+    origin = git.origin(url = internal_url, ref = "main"),
+    destination = git.github_destination(url = github_url, push = "main"),
+    transformations = [export_transforms],
+    reversible_check = True,
+)
+
+# Import workflow (uses reversal automatically)
+core.workflow(
+    name = "import",
+    origin = git.github_pr_origin(url = github_url, branch = "main"),
+    destination = git.gerrit_destination(url = internal_url, ...),
+    transformations = [export_transforms],  # Copybara uses reversal
+    mode = "CHANGE_REQUEST_FROM_SOT",
+)
+```
+
+## Next Steps
+
+- [Glob patterns](/copybara-docs/config/glob-patterns/)
+- [Workflow configuration](/copybara-docs/workflows/overview/)

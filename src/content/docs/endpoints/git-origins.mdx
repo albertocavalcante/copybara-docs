@@ -1,0 +1,215 @@
+---
+title: Git Origins
+description: Reading code from Git repositories
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+# Git Origins
+
+Git origins define where Copybara reads source code from.
+
+## git.origin
+
+The basic Git origin for any Git repository:
+
+```starlark
+origin = git.origin(
+    url = "https://github.com/org/repo.git",
+    ref = "main",
+)
+```
+
+### Parameters
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `url` | Yes | Repository URL (HTTPS or SSH) |
+| `ref` | No | Branch, tag, or commit (default: `main`) |
+| `submodules` | No | How to handle submodules |
+| `include_branch_commit_logs` | No | Include branch commit logs |
+| `first_parent` | No | Only follow first parent of merges |
+| `partial_fetch` | No | Enable partial clone |
+
+### Examples
+
+```starlark
+# Basic usage
+origin = git.origin(
+    url = "https://github.com/org/repo",
+    ref = "main",
+)
+
+# Specific branch
+origin = git.origin(
+    url = "https://github.com/org/repo",
+    ref = "release/v2",
+)
+
+# With submodules
+origin = git.origin(
+    url = "https://github.com/org/repo",
+    ref = "main",
+    submodules = "YES",  # or "NO", "RECURSIVE"
+)
+
+# SSH URL
+origin = git.origin(
+    url = "git@github.com:org/repo.git",
+    ref = "main",
+)
+
+# Only first parent (cleaner history)
+origin = git.origin(
+    url = "https://github.com/org/repo",
+    ref = "main",
+    first_parent = True,
+)
+```
+
+## git.github_origin
+
+GitHub-specific origin with extra features:
+
+```starlark
+origin = git.github_origin(
+    url = "https://github.com/org/repo",
+    ref = "main",
+)
+```
+
+### Additional Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `review_state` | Only process commits with this review state |
+| `review_approvers` | Users whose approval counts |
+| `api_checker` | Custom API checker |
+
+```starlark
+# Only sync approved commits
+origin = git.github_origin(
+    url = "https://github.com/org/repo",
+    ref = "main",
+    review_state = "APPROVED",
+    review_approvers = ["maintainer1", "maintainer2"],
+)
+```
+
+<Aside type="note">
+`git.github_origin` provides access to GitHub-specific metadata like PR labels, review status, and issue references.
+</Aside>
+
+## git.github_pr_origin
+
+Read from GitHub pull requests:
+
+```starlark
+origin = git.github_pr_origin(
+    url = "https://github.com/org/repo",
+    branch = "main",
+)
+```
+
+### Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `url` | Repository URL |
+| `branch` | Base branch for PRs |
+| `state` | PR state filter (`OPEN`, `CLOSED`, `ALL`) |
+| `labels` | Only PRs with these labels |
+| `required_labels` | Labels that must be present |
+| `required_status_context_names` | CI checks that must pass |
+
+### Examples
+
+```starlark
+# All open PRs
+origin = git.github_pr_origin(
+    url = "https://github.com/org/repo",
+    branch = "main",
+    state = "OPEN",
+)
+
+# Only PRs with specific label
+origin = git.github_pr_origin(
+    url = "https://github.com/org/repo",
+    branch = "main",
+    required_labels = ["ready-to-import"],
+)
+
+# PRs with passing CI
+origin = git.github_pr_origin(
+    url = "https://github.com/org/repo",
+    branch = "main",
+    required_status_context_names = ["ci/build", "ci/test"],
+)
+```
+
+## git.gerrit_origin
+
+Read from Gerrit repositories:
+
+```starlark
+origin = git.gerrit_origin(
+    url = "https://gerrit.example.com/repo",
+    ref = "refs/heads/main",
+)
+```
+
+### Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `url` | Gerrit repository URL |
+| `ref` | Reference to sync |
+| `change_number_url` | URL pattern for changes |
+
+## Submodule Handling
+
+Control how submodules are processed:
+
+```starlark
+origin = git.origin(
+    url = "https://github.com/org/repo",
+    ref = "main",
+    submodules = "RECURSIVE",  # Recursively init submodules
+)
+```
+
+Options:
+- `"NO"` - Ignore submodules (default)
+- `"YES"` - Initialize submodules (one level)
+- `"RECURSIVE"` - Recursively initialize all submodules
+
+<Aside type="caution">
+Submodule processing can significantly increase sync time for repositories with many submodules.
+</Aside>
+
+## Version Selection
+
+The `ref` parameter accepts:
+
+| Type | Example | Description |
+|------|---------|-------------|
+| Branch | `main` | Head of branch |
+| Tag | `v1.0.0` | Specific tag |
+| Commit | `abc123` | Specific commit |
+| Full ref | `refs/heads/main` | Full Git reference |
+
+```starlark
+# Branch
+origin = git.origin(url = ..., ref = "main")
+
+# Tag
+origin = git.origin(url = ..., ref = "v1.0.0")
+
+# Commit
+origin = git.origin(url = ..., ref = "abc123def456")
+```
+
+## Next Steps
+
+- [Git destinations](/copybara-docs/endpoints/git-destinations/)
+- [GitHub integration](/copybara-docs/endpoints/github/)
