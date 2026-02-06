@@ -11,11 +11,25 @@ Copybara's architecture is based on **origins** (where code comes from) and **de
 
 ## Architecture
 
-```
-┌─────────────────┐         ┌──────────────┐         ┌─────────────────┐
-│     ORIGIN      │────────▶│   Copybara   │────────▶│  DESTINATION    │
-│  (read code)    │         │  (transform) │         │  (write code)   │
-└─────────────────┘         └──────────────┘         └─────────────────┘
+```d2
+direction: right
+
+origin: ORIGIN {
+  shape: rectangle
+  label: "ORIGIN\n(read code)"
+}
+
+copybara: Copybara {
+  shape: rectangle
+  label: "Copybara\n(transform)"
+}
+
+destination: DESTINATION {
+  shape: rectangle
+  label: "DESTINATION\n(write code)"
+}
+
+origin -> copybara -> destination
 ```
 
 ## Available Origins

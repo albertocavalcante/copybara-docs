@@ -22,11 +22,25 @@ Manually managing these workflows is error-prone and time-consuming. Copybara au
 
 ## How Copybara Works
 
-```
-┌─────────────────┐         ┌──────────────┐         ┌─────────────────┐
-│  Source Repo    │────────▶│   Copybara   │────────▶│  Destination    │
-│  (Origin)       │         │  (Transform) │         │  Repo           │
-└─────────────────┘         └──────────────┘         └─────────────────┘
+```d2
+direction: right
+
+source: Source Repo {
+  shape: rectangle
+  label: "Source Repo\n(Origin)"
+}
+
+copybara: Copybara {
+  shape: rectangle
+  label: "Copybara\n(Transform)"
+}
+
+dest: Destination Repo {
+  shape: rectangle
+  label: "Destination\nRepo"
+}
+
+source -> copybara -> dest
 ```
 
 <Steps>

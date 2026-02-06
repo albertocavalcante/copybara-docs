@@ -13,32 +13,44 @@ Two workflow modes that push directly to the destination, with different approac
 
 ### SQUASH Mode
 
-```
-Origin:              Destination:
-┌─────┐
-│ A   │─┐
-└─────┘ │
-┌─────┐ │            ┌─────────────┐
-│ B   │─┼──────────▶ │  A + B + C  │
-└─────┘ │            └─────────────┘
-┌─────┐ │
-│ C   │─┘
-└─────┘
+```d2
+direction: right
+
+origin: Origin {
+  a: A
+  b: B
+  c: C
+}
+
+destination: Destination {
+  squashed: A + B + C
+}
+
+origin.a -> destination.squashed
+origin.b -> destination.squashed
+origin.c -> destination.squashed
 ```
 
 ### ITERATIVE Mode
 
-```
-Origin:              Destination:
-┌─────┐              ┌─────┐
-│ A   │──────────────│ A'  │
-└─────┘              └─────┘
-┌─────┐              ┌─────┐
-│ B   │──────────────│ B'  │
-└─────┘              └─────┘
-┌─────┐              ┌─────┐
-│ C   │──────────────│ C'  │
-└─────┘              └─────┘
+```d2
+direction: right
+
+origin: Origin {
+  a: A
+  b: B
+  c: C
+}
+
+destination: Destination {
+  a_prime: A'
+  b_prime: B'
+  c_prime: C'
+}
+
+origin.a -> destination.a_prime
+origin.b -> destination.b_prime
+origin.c -> destination.c_prime
 ```
 
 ## Feature Comparison
@@ -137,42 +149,65 @@ GitOrigin-RevId: abc123
 
 Merge commits are handled transparently - all changes are combined:
 
-```
-Origin:                    Destination:
-    main
-    ┌─────┐
-    │ A   │
-    └──┬──┘
-       │   feature
-       ├───┌─────┐         ┌─────────────┐
-       │   │ B   │    ──▶  │ A + B + C   │
-       │   └──┬──┘         └─────────────┘
-       │      │
-    ┌──┴──────┴──┐
-    │ merge     │
-    └─────┬─────┘
-          │
-    ┌─────┴─────┐
-    │ C         │
-    └───────────┘
+```d2
+direction: right
+
+origin: Origin {
+  a: A {
+    tooltip: "main branch"
+  }
+  b: B {
+    tooltip: "feature branch"
+  }
+  merge: merge
+  c: C
+
+  a -> merge
+  b -> merge
+  merge -> c
+}
+
+destination: Destination {
+  squashed: A + B + C
+}
+
+origin -> destination
 ```
 
 ### ITERATIVE Behavior
 
 Merge commits can cause issues:
 
-```
-Origin:                    Destination:
-    ┌─────┐                ┌─────┐
-    │ A   │────────────────│ A'  │
-    └──┬──┘                └─────┘
-       │   ┌─────┐         ┌─────┐
-       ├───│ B   │─────────│ B'  │
-       │   └──┬──┘         └─────┘
-       │      │
-    ┌──┴──────┴──┐         ❌ ERROR
-    │ merge     │─────────  (merge commit)
-    └───────────┘
+```d2
+direction: right
+
+origin: Origin {
+  a: A
+  b: B
+  merge: merge {
+    style.fill: "#ffcccc"
+    style.stroke: "#cc0000"
+  }
+
+  a -> merge
+  b -> merge
+}
+
+destination: Destination {
+  a_prime: A'
+  b_prime: B'
+  error: "❌ ERROR\n(merge commit)" {
+    shape: text
+    style.font-color: "#cc0000"
+  }
+}
+
+origin.a -> destination.a_prime
+origin.b -> destination.b_prime
+origin.merge -> destination.error: {
+  style.stroke-dash: 3
+  style.stroke: "#cc0000"
+}
 ```
 
 <Aside type="tip">
@@ -233,19 +268,41 @@ core.workflow(
 
 ## Decision Flowchart
 
-```
-Start
-  │
-  ▼
-Do you need 1:1 commit mapping?
-  │
-  ├─ Yes ──▶ Is origin history linear (no merges)?
-  │              │
-  │              ├─ Yes ──▶ Use ITERATIVE
-  │              │
-  │              └─ No ───▶ Use SQUASH (or rebase origin first)
-  │
-  └─ No ───▶ Use SQUASH
+```d2
+direction: down
+
+start: Start {
+  shape: oval
+}
+
+q1: "Need 1:1\ncommit mapping?" {
+  shape: diamond
+}
+
+q2: "Origin history\nlinear (no merges)?" {
+  shape: diamond
+}
+
+iterative: Use ITERATIVE {
+  shape: rectangle
+  style.fill: "#e6ffe6"
+}
+
+squash1: Use SQUASH {
+  shape: rectangle
+  style.fill: "#e6f3ff"
+}
+
+squash2: "Use SQUASH\n(or rebase first)" {
+  shape: rectangle
+  style.fill: "#e6f3ff"
+}
+
+start -> q1
+q1 -> q2: Yes
+q1 -> squash1: No
+q2 -> iterative: Yes
+q2 -> squash2: No
 ```
 
 ## Switching Between Modes

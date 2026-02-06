@@ -32,12 +32,20 @@ core.workflow(
 
 ### Behavior
 
-```
-Origin commits:          Destination:
-┌─────┐ ┌─────┐ ┌─────┐     ┌───────────────┐
-│ A   │ │ B   │ │ C   │ ──▶ │ A + B + C     │
-└─────┘ └─────┘ └─────┘     │ (squashed)    │
-                            └───────────────┘
+```d2
+direction: right
+
+origin: Origin commits {
+  a: A
+  b: B
+  c: C
+}
+
+destination: Destination {
+  squashed: "A + B + C\n(squashed)"
+}
+
+origin -> destination
 ```
 
 ### Commit Message
@@ -80,11 +88,24 @@ core.workflow(
 
 ### Behavior
 
-```
-Origin commits:          Destination commits:
-┌─────┐ ┌─────┐ ┌─────┐     ┌─────┐ ┌─────┐ ┌─────┐
-│ A   │ │ B   │ │ C   │ ──▶ │ A'  │ │ B'  │ │ C'  │
-└─────┘ └─────┘ └─────┘     └─────┘ └─────┘ └─────┘
+```d2
+direction: right
+
+origin: Origin commits {
+  a: A
+  b: B
+  c: C
+}
+
+destination: Destination commits {
+  a_prime: A'
+  b_prime: B'
+  c_prime: C'
+}
+
+origin.a -> destination.a_prime
+origin.b -> destination.b_prime
+origin.c -> destination.c_prime
 ```
 
 ### When to Use
@@ -124,12 +145,22 @@ core.workflow(
 
 ### Behavior
 
-```
-Origin commits:          Destination:
-┌─────┐ ┌─────┐ ┌─────┐     ┌─────────────────┐
-│ A   │ │ B   │ │ C   │ ──▶ │ PR #123         │
-└─────┘ └─────┘ └─────┘     │ copybara/sync-* │
-                            └─────────────────┘
+```d2
+direction: right
+
+origin: Origin commits {
+  a: A
+  b: B
+  c: C
+}
+
+destination: Destination {
+  pr: "PR #123\ncopybara/sync-*" {
+    shape: document
+  }
+}
+
+origin -> destination.pr
 ```
 
 ### When to Use
@@ -183,12 +214,22 @@ core.workflow(
 
 Imports external PRs as internal CLs for review:
 
-```
-GitHub PR:              Internal Gerrit:
-┌─────────────┐            ┌─────────────┐
-│ PR #42      │ ──────────▶ │ CL 12345    │
-│ (external)  │            │ (for review)│
-└─────────────┘            └─────────────┘
+```d2
+direction: right
+
+github: GitHub PR {
+  pr: "PR #42\n(external)" {
+    shape: document
+  }
+}
+
+gerrit: Internal Gerrit {
+  cl: "CL 12345\n(for review)" {
+    shape: document
+  }
+}
+
+github.pr -> gerrit.cl
 ```
 
 ### When to Use

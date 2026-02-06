@@ -16,17 +16,25 @@ CHANGE_REQUEST mode creates pull requests (GitHub) or change lists (Gerrit) inst
 
 ## How It Works
 
-```
-┌─────────────────┐         ┌──────────────┐         ┌─────────────────┐
-│  Origin Repo    │────────▶│   Copybara   │────────▶│  Destination    │
-│  main branch    │         │              │         │  creates PR     │
-└─────────────────┘         └──────────────┘         └─────────────────┘
-                                                              │
-                                                              ▼
-                                                     ┌─────────────────┐
-                                                     │  PR #123        │
-                                                     │  copybara/sync  │
-                                                     └─────────────────┘
+```d2
+direction: right
+
+origin: Origin Repo {
+  label: "Origin Repo\nmain branch"
+}
+
+copybara: Copybara
+
+destination: Destination {
+  label: "Destination\ncreates PR"
+}
+
+pr: "PR #123\ncopybara/sync" {
+  shape: document
+}
+
+origin -> copybara -> destination
+destination -> pr
 ```
 
 ## GitHub PR Destination

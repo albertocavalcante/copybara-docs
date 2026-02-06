@@ -2,6 +2,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import starlightLinksValidator from 'starlight-links-validator';
 import sitemap from '@astrojs/sitemap';
+import astroD2 from 'astro-d2';
 import fs from 'node:fs';
 
 // Load TextMate grammar for Starlark syntax highlighting
@@ -14,6 +15,14 @@ export default defineConfig({
 	base: '/',
 
 	integrations: [
+		astroD2({
+			theme: {
+				default: '0', // Neutral Default (light)
+				dark: '200', // Dark Mauve (dark)
+			},
+			pad: 20,
+			layout: 'dagre',
+		}),
 		sitemap(),
 		starlight({
 			plugins: [

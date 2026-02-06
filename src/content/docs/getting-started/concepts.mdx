@@ -205,17 +205,29 @@ The **Source of Truth** is the authoritative repository:
 
 Copybara always reads from the SOT and writes to the mirror.
 
-```
-┌─────────────────┐
-│  Internal Repo  │◀──── Source of Truth (SOT)
-│  (authoritative)│
-└────────┬────────┘
-         │
-         ▼ export
-┌─────────────────┐
-│  External Repo  │
-│  (mirror)       │
-└─────────────────┘
+```d2
+direction: down
+
+internal: Internal Repo {
+  shape: rectangle
+  label: "Internal Repo\n(authoritative)"
+}
+
+external: External Repo {
+  shape: rectangle
+  label: "External Repo\n(mirror)"
+}
+
+sot: Source of Truth (SOT) {
+  shape: text
+  style.font-size: 14
+}
+
+sot -> internal: {
+  style.stroke-dash: 3
+}
+
+internal -> external: export
 ```
 
 ## Labels
