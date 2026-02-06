@@ -73,6 +73,7 @@ export default defineConfig({
 						{ label: 'Overview', slug: 'guides' },
 						{ label: 'Hello World', slug: 'guides/hello-world' },
 						{ label: 'Open Source a Project', slug: 'guides/open-source-project' },
+						{ label: 'Sync Docs via PR', slug: 'guides/sync-docs-via-pr' },
 					],
 				},
 				{

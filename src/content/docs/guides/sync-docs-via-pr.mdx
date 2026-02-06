@@ -1,0 +1,765 @@
+---
+title: "Sync Documentation via Pull Requests"
+description: Keep documentation sites in sync using PR-based workflows with review
+---
+
+import {
+  Aside,
+  Steps,
+  FileTree,
+  Tabs,
+  TabItem,
+} from "@astrojs/starlight/components";
+
+# Sync Documentation via Pull Requests
+
+This guide shows you how to automatically sync documentation from an internal repository to a public docs site, creating **Pull Requests** for review instead of pushing directly.
+
+This is ideal when:
+
+- You want changes reviewed before they go live
+- You don't have (or don't want) direct push access
+- You need an audit trail of all sync operations
+- Multiple teams need to approve documentation changes
+
+## What You'll Build
+
+A workflow that:
+
+1. Watches for changes in your internal `docs/` folder
+2. Filters out internal-only content
+3. Transforms internal references to public ones
+4. Creates a Pull Request on your public docs repository
+5. Runs automatically via GitHub Actions
+
+```d2
+direction: right
+
+internal: Internal Repo {
+  docs: "docs/public/\ndocs/internal/"
+}
+
+copybara: Copybara {
+  filter: "Filter internal"
+  transform: "Replace URLs"
+  verify: "Check for leaks"
+}
+
+public: Public Docs Repo {
+  pr: "PR #42\nAwaiting Review" {
+    shape: document
+  }
+}
+
+internal -> copybara: "Only docs/public/"
+copybara -> public.pr: "Creates PR"
+```
+
+## Scenario
+
+You have this structure in your internal repository:
+
+<FileTree>
+
+- internal-repo/
+  - src/ Application code
+  - docs/
+    - public/ Customer-facing docs
+      - getting-started.md
+      - api-reference.md
+      - images/
+        - diagram.png
+    - internal/ Internal-only docs (won't be synced)
+      - architecture.md
+      - runbooks.md
+  - copy.bara.sky Copybara config
+
+</FileTree>
+
+And a separate public documentation repository:
+
+<FileTree>
+
+- public-docs/
+  - getting-started.md Synced from internal
+  - api-reference.md Synced from internal
+  - images/
+    - diagram.png
+  - README.md Not managed by Copybara
+  - CONTRIBUTING.md Not managed by Copybara
+
+</FileTree>
+
+## Prerequisites
+
+- **Two GitHub repositories**: source (internal) and destination (public docs)
+- **GitHub Personal Access Token** with repo access to the destination
+- **Java 11+** and **Git** installed
+- **Copybara JAR** downloaded
+
+## Step 1: Create a GitHub Personal Access Token
+
+You need a token that can create PRs on your destination repository.
+
+<Tabs>
+<TabItem label="Fine-Grained Token (Recommended)">
+
+1. Go to [GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens](https://github.com/settings/tokens?type=beta)
+2. Click **Generate new token**
+3. Configure:
+   - **Token name**: `copybara-docs-sync`
+   - **Expiration**: Choose based on your needs
+   - **Repository access**: Select "Only select repositories" → choose your public docs repo
+   - **Permissions**:
+     - **Contents**: Read and write
+     - **Pull requests**: Read and write
+4. Click **Generate token** and copy it
+
+</TabItem>
+<TabItem label="Classic Token">
+
+1. Go to [GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)](https://github.com/settings/tokens)
+2. Click **Generate new token (classic)**
+3. Select the `repo` scope
+4. Click **Generate token** and copy it
+
+</TabItem>
+</Tabs>
+
+<Aside type="caution">
+  Store your token securely. You'll add it as a GitHub Actions secret later.
+  Never commit tokens to your repository.
+</Aside>
+
+## Step 2: Set Up Your Source Documentation
+
+In your internal repository, organize your docs with clear separation:
+
+Create `docs/public/getting-started.md`:
+
+```markdown title="docs/public/getting-started.md"
+---
+title: Getting Started
+---
+
+# Getting Started with Our Product
+
+Welcome to the official documentation!
+
+## Installation
+
+Download from https://internal.company.com/downloads
+
+<!-- INTERNAL: Requires VPN access for internal users -->
+
+## Quick Start
+
+Run the following command:
+
+\`\`\`bash
+our-cli init
+\`\`\`
+
+<!-- BEGIN INTERNAL -->
+
+### Debug Mode (Internal Only)
+
+For internal testing, use:
+
+\`\`\`bash
+our-cli init --debug --internal-api
+\`\`\`
+
+<!-- END INTERNAL -->
+
+## Next Steps
+
+- Read the [API Reference](./api-reference.md)
+- Contact support@internal.company.com for help
+```
+
+Notice the markers:
+
+| Marker                                                | Purpose                                        |
+| ----------------------------------------------------- | ---------------------------------------------- |
+| `<!-- INTERNAL: ... -->`                              | Single-line internal notes (will be removed)   |
+| `<!-- BEGIN INTERNAL -->` ... `<!-- END INTERNAL -->` | Multi-line internal sections (will be removed) |
+
+These let you keep internal notes in your source while automatically stripping them during sync.
+
+## Step 3: Write the Copybara Configuration
+
+Create `copy.bara.sky` in your internal repository root:
+
+```starlark title="copy.bara.sky"
+# Documentation Sync Configuration
+# Syncs docs/public/ to the public documentation repository via PR
+
+INTERNAL_REPO = "https://github.com/YOUR_ORG/internal-repo"
+PUBLIC_DOCS_REPO = "https://github.com/YOUR_ORG/public-docs"
+
+core.workflow(
+    name = "sync-docs",
+
+    # Read from the internal repository
+    origin = git.github_origin(
+        url = INTERNAL_REPO,
+        ref = "main",
+    ),
+
+    # Create a PR on the public docs repository
+    destination = git.github_pr_destination(
+        url = PUBLIC_DOCS_REPO,
+        destination_ref = "main",
+
+        # Branch name for the PR (includes commit SHA for uniqueness)
+        pr_branch = "copybara/docs-sync-${CONTEXT_REFERENCE}",
+
+        # PR title and description
+        title = "docs: sync from internal repository",
+        body = """\
+## Automated Documentation Sync
+
+This PR was automatically created by Copybara to sync documentation changes.
+
+### What's included
+- All changes from `docs/public/` in the internal repository
+- Internal-only content has been automatically removed
+- Internal URLs have been replaced with public URLs
+
+### Source
+Commit: `${COPYBARA_CONTEXT_REFERENCE}`
+
+---
+*Please review the changes and merge when ready.*
+""",
+        # Update PR description if we push new changes
+        update_description = True,
+    ),
+
+    # Only sync the public documentation folder
+    origin_files = glob(
+        include = ["docs/public/**"],
+        exclude = [
+            "**/*.draft.md",
+            "**/*.draft.mdx",
+            "**/INTERNAL_*.md",
+        ],
+    ),
+
+    # Don't overwrite these files in the destination
+    # (they're manually maintained in the public repo)
+    destination_files = glob(
+        include = ["**"],
+        exclude = [
+            "README.md",
+            "CONTRIBUTING.md",
+            "LICENSE",
+            ".github/**",
+            "CNAME",
+        ],
+    ),
+
+    # Preserve original authors, with fallback for automated commits
+    authoring = authoring.pass_thru(
+        default = "Documentation Bot <docs-bot@your-company.com>",
+    ),
+
+    # Transformations applied in order
+    transformations = [
+        # 1. Flatten the directory structure
+        #    docs/public/getting-started.md → getting-started.md
+        core.move("docs/public/", ""),
+
+        # 2. Replace internal URLs with public ones
+        core.replace(
+            before = "https://internal.company.com",
+            after = "https://docs.your-company.com",
+            paths = glob(["**/*.md", "**/*.mdx"]),
+        ),
+
+        # 3. Replace internal email domains
+        core.replace(
+            before = "@internal.company.com",
+            after = "@your-company.com",
+            paths = glob(["**/*.md", "**/*.mdx"]),
+        ),
+
+        # 4. Remove single-line internal comments
+        #    <!-- INTERNAL: any text here -->
+        core.replace(
+            before = "<!-- INTERNAL: ${content} -->",
+            after = "",
+            regex_groups = {"content": "[^>]*"},
+            paths = glob(["**/*.md", "**/*.mdx"]),
+        ),
+
+        # 5. Remove multi-line internal sections
+        #    <!-- BEGIN INTERNAL -->
+        #    ... anything here ...
+        #    <!-- END INTERNAL -->
+        core.replace(
+            before = "<!-- BEGIN INTERNAL -->${content}<!-- END INTERNAL -->",
+            after = "",
+            regex_groups = {"content": "[\\s\\S]*?"},
+            multiline = True,
+            paths = glob(["**/*.md", "**/*.mdx"]),
+        ),
+
+        # 6. Clean up extra blank lines left by removals
+        core.replace(
+            before = "\n\n\n",
+            after = "\n\n",
+            paths = glob(["**/*.md", "**/*.mdx"]),
+        ),
+
+        # 7. SAFETY: Verify no internal content leaked through
+        core.verify_match(
+            regex = "INTERNAL|CONFIDENTIAL|internal\\.company\\.com|@internal\\.",
+            verify_no_match = True,
+            paths = glob(["**/*.md", "**/*.mdx"]),
+        ),
+
+        # 8. Add sync metadata to commit message
+        metadata.squash_notes(
+            prefix = "Documentation sync:\n\n",
+            show_description = True,
+            show_author = True,
+            oldest_first = True,
+        ),
+    ],
+
+    # Combine all changes into one commit
+    mode = "SQUASH",
+)
+```
+
+<Aside type="note" title="Update the repository URLs">
+  Replace `YOUR_ORG/internal-repo` and `YOUR_ORG/public-docs` with your actual
+  repository paths.
+</Aside>
+
+### Understanding Key Parts
+
+#### `git.github_pr_destination`
+
+This is what makes Copybara create a PR instead of pushing directly:
+
+```starlark
+destination = git.github_pr_destination(
+    url = PUBLIC_DOCS_REPO,
+    destination_ref = "main",           # Target branch for the PR
+    pr_branch = "copybara/docs-sync-${CONTEXT_REFERENCE}",
+    title = "docs: sync from internal",
+    body = "...",
+    update_description = True,          # Update PR description on re-runs
+)
+```
+
+#### `destination_files`
+
+Protects files that exist only in the public repo:
+
+```starlark
+destination_files = glob(
+    include = ["**"],
+    exclude = ["README.md", "CONTRIBUTING.md", ".github/**"],
+)
+```
+
+Files in `exclude` won't be deleted even if they don't exist in the source.
+
+#### `core.verify_match`
+
+The safety net - fails the sync if internal content would leak:
+
+```starlark
+core.verify_match(
+    regex = "INTERNAL|CONFIDENTIAL|internal\\.company\\.com",
+    verify_no_match = True,
+)
+```
+
+## Step 4: Test Locally
+
+Before automating, test the sync locally:
+
+```bash
+# Clone your internal repo
+git clone https://github.com/YOUR_ORG/internal-repo
+cd internal-repo
+
+# Set up Git credentials (use your PAT)
+git config --global credential.helper store
+echo "https://YOUR_USERNAME:YOUR_PAT@github.com" >> ~/.git-credentials
+
+# Run Copybara (first run needs --force)
+java -jar copybara.jar migrate copy.bara.sky sync-docs --force
+```
+
+Check GitHub - you should see a new PR on your public docs repository!
+
+<Aside type="tip" title="Preview without creating a PR">
+  Use `--folder-dir` to write to a local folder instead:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky sync-docs \
+    --folder-dir /tmp/docs-preview \
+    --force
+```
+
+Then inspect `/tmp/docs-preview` to verify the output.
+
+</Aside>
+
+## Step 5: Set Up GitHub Actions
+
+Automate the sync to run whenever docs change.
+
+Create `.github/workflows/sync-docs.yml` in your **internal repository**:
+
+```yaml title=".github/workflows/sync-docs.yml"
+name: Sync Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/public/**"
+      - "copy.bara.sky"
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  sync:
+    name: Sync to Public Docs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for Copybara
+
+      - name: Install D2 (for diagrams)
+        run: curl -fsSL https://d2lang.com/install.sh | sh -s --
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Download Copybara
+        run: |
+          curl -fsSL -o copybara.jar \
+            https://github.com/google/copybara/releases/latest/download/copybara_deploy.jar
+
+      - name: Configure Git credentials
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global credential.helper store
+          echo "https://x-access-token:${{ secrets.DOCS_SYNC_TOKEN }}@github.com" >> ~/.git-credentials
+
+      - name: Run Copybara
+        run: |
+          java -jar copybara.jar migrate copy.bara.sky sync-docs --ignore-noop
+```
+
+### Add the Secret
+
+1. Go to your **internal repository** → Settings → Secrets and variables → Actions
+2. Click **New repository secret**
+3. Name: `DOCS_SYNC_TOKEN`
+4. Value: Paste your GitHub PAT from Step 1
+
+## Step 6: The PR Workflow
+
+Here's what happens when documentation changes:
+
+```d2
+direction: down
+
+change: Developer pushes\nto docs/public/ {
+  shape: oval
+}
+
+action: GitHub Action\ntriggers {
+  shape: rectangle
+}
+
+copybara: Copybara runs {
+  shape: rectangle
+  filter: "Filters files"
+  transform: "Transforms content"
+  verify: "Verifies safety"
+}
+
+decision: PR exists? {
+  shape: diamond
+}
+
+create: Create new PR {
+  shape: rectangle
+}
+
+update: Update existing PR\n(force push) {
+  shape: rectangle
+}
+
+review: Team reviews PR {
+  shape: rectangle
+}
+
+merge: Merge to main {
+  shape: oval
+}
+
+change -> action
+action -> copybara
+copybara -> decision
+decision -> create: No
+decision -> update: Yes
+create -> review
+update -> review
+review -> merge
+```
+
+### PR Lifecycle
+
+| Scenario                      | What Happens                      |
+| ----------------------------- | --------------------------------- |
+| First sync                    | New PR is created                 |
+| More changes (PR still open)  | PR branch is updated (force push) |
+| PR was merged                 | New PR is created for new changes |
+| PR was closed without merging | New PR is created                 |
+
+## Marking Internal Content
+
+Use these patterns in your documentation:
+
+### Single-Line Internal Notes
+
+```markdown
+This is public content.
+
+<!-- INTERNAL: Remember to update the staging server first -->
+
+More public content.
+```
+
+**After sync:**
+
+```markdown
+This is public content.
+
+More public content.
+```
+
+### Multi-Line Internal Sections
+
+```markdown
+## Public Feature
+
+Public description here.
+
+<!-- BEGIN INTERNAL -->
+
+### Internal Implementation Notes
+
+This entire section is stripped during sync.
+
+- Internal detail 1
+- Internal detail 2
+
+<!-- END INTERNAL -->
+
+## Another Public Section
+```
+
+**After sync:**
+
+```markdown
+## Public Feature
+
+Public description here.
+
+## Another Public Section
+```
+
+### Internal-Only Files
+
+Any file matching these patterns is completely excluded:
+
+- `*.draft.md` - Draft documents
+- `INTERNAL_*.md` - Files prefixed with INTERNAL\_
+- Anything in `exclude` patterns
+
+## Handling Images and Assets
+
+Images in `docs/public/images/` are synced along with the markdown:
+
+```starlark
+origin_files = glob(
+    include = [
+        "docs/public/**/*.md",
+        "docs/public/**/*.mdx",
+        "docs/public/**/*.png",
+        "docs/public/**/*.jpg",
+        "docs/public/**/*.gif",
+        "docs/public/**/*.svg",
+    ],
+    exclude = [...],
+)
+```
+
+If your images use absolute paths, add a transformation:
+
+```starlark
+# Update image paths after flattening
+core.replace(
+    before = "](/docs/public/images/",
+    after = "](/images/",
+    paths = glob(["**/*.md"]),
+)
+```
+
+## Troubleshooting
+
+### "Cannot create pull request"
+
+**Cause:** Token doesn't have PR permissions.
+
+**Fix:** Ensure your token has `pull_requests: write` permission for the destination repository.
+
+### "verify_match found matches"
+
+**Cause:** Internal content would leak to public.
+
+**Fix:** Check which file triggered it:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky sync-docs --force 2>&1 | grep -A5 "verify_match"
+```
+
+Then either:
+
+1. Remove the internal content from the source
+2. Wrap it in `<!-- BEGIN INTERNAL -->` markers
+3. Add the file to `exclude` patterns
+
+### "Nothing to migrate"
+
+**Cause:** No new changes since last sync.
+
+**Fix:** This is normal! Use `--ignore-noop` in CI to not fail:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky sync-docs --ignore-noop
+```
+
+### "Branch already exists"
+
+**Cause:** PR branch exists from a previous sync.
+
+**Fix:** This is normal - Copybara will update the existing branch. If you want a fresh start:
+
+```bash
+git push origin --delete copybara/docs-sync-abc1234
+```
+
+### PR shows more changes than expected
+
+**Cause:** `destination_files` might not be excluding manually-maintained files.
+
+**Fix:** Add those files to the `exclude` list:
+
+```starlark
+destination_files = glob(
+    include = ["**"],
+    exclude = [
+        "README.md",
+        "CONTRIBUTING.md",
+        "YOUR_MANUAL_FILE.md",  # Add this
+    ],
+)
+```
+
+## Complete Working Example
+
+Here's the full configuration with all pieces:
+
+```starlark title="copy.bara.sky"
+INTERNAL = "https://github.com/acme/internal-monorepo"
+PUBLIC_DOCS = "https://github.com/acme/developer-docs"
+
+core.workflow(
+    name = "sync-docs",
+
+    origin = git.github_origin(
+        url = INTERNAL,
+        ref = "main",
+    ),
+
+    destination = git.github_pr_destination(
+        url = PUBLIC_DOCS,
+        destination_ref = "main",
+        pr_branch = "copybara/docs-${CONTEXT_REFERENCE}",
+        title = "docs: automated sync from internal",
+        body = """\
+## Documentation Sync
+
+Automated sync from internal repository.
+
+**Commit:** `${COPYBARA_CONTEXT_REFERENCE}`
+
+Please review and merge when ready.
+""",
+        update_description = True,
+    ),
+
+    origin_files = glob(
+        include = ["docs/public/**"],
+        exclude = ["**/*.draft.md", "**/INTERNAL_*"],
+    ),
+
+    destination_files = glob(
+        include = ["**"],
+        exclude = ["README.md", "CONTRIBUTING.md", ".github/**", "CNAME"],
+    ),
+
+    authoring = authoring.pass_thru(
+        default = "Docs Bot <docs@acme.com>"
+    ),
+
+    transformations = [
+        core.move("docs/public/", ""),
+        core.replace("internal.acme.com", "docs.acme.com"),
+        core.replace("@internal.acme.com", "@acme.com"),
+        core.replace(
+            before = "<!-- INTERNAL: ${note} -->",
+            after = "",
+            regex_groups = {"note": "[^>]*"},
+        ),
+        core.replace(
+            before = "<!-- BEGIN INTERNAL -->${content}<!-- END INTERNAL -->",
+            after = "",
+            regex_groups = {"content": "[\\s\\S]*?"},
+            multiline = True,
+        ),
+        core.verify_match(
+            regex = "INTERNAL|internal\\.acme\\.com",
+            verify_no_match = True,
+        ),
+    ],
+
+    mode = "SQUASH",
+)
+```
+
+## What's Next?
+
+- **[CLI Reference](/reference/cli/)** - All Copybara commands and flags
+- **[Transformations](/transformations/overview/)** - More ways to modify content
+- **[GitHub Integration](/endpoints/github/)** - Advanced GitHub features
+- **[CHANGE_REQUEST Mode](/workflows/change-request/)** - Deep dive into PR workflows
