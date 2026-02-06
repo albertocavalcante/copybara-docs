@@ -10,8 +10,8 @@ const starlarkGrammar = JSON.parse(
 );
 
 export default defineConfig({
-	site: 'https://albertocavalcante.github.io',
-	base: '/copybara-docs',
+	site: 'https://copybara.hallucinatedocs.com',
+	base: '/',
 
 	integrations: [
 		sitemap(),
