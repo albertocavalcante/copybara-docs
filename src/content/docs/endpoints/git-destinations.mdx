@@ -3,7 +3,7 @@ title: Git Destinations
 description: Writing code to Git repositories
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Git Destinations
 
@@ -23,14 +23,14 @@ destination = git.destination(
 
 ### Parameters
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `url` | Yes | Repository URL (HTTPS or SSH) |
-| `push` | Yes | Branch to push to |
-| `fetch` | No | Branch to fetch (default: same as `push`) |
-| `tag_name` | No | Create a tag with this name |
-| `tag_msg` | No | Tag message |
-| `skip_push` | No | Skip the push (for testing) |
+| Parameter   | Required | Description                               |
+| ----------- | -------- | ----------------------------------------- |
+| `url`       | Yes      | Repository URL (HTTPS or SSH)             |
+| `push`      | Yes      | Branch to push to                         |
+| `fetch`     | No       | Branch to fetch (default: same as `push`) |
+| `tag_name`  | No       | Create a tag with this name               |
+| `tag_msg`   | No       | Tag message                               |
+| `skip_push` | No       | Skip the push (for testing)               |
 
 ### Examples
 
@@ -102,17 +102,17 @@ destination = git.github_pr_destination(
 
 ### Parameters
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `url` | Yes | Repository URL |
-| `destination_ref` | Yes | Target branch for the PR |
-| `pr_branch` | No | Branch name for the PR |
-| `title` | No | PR title |
-| `body` | No | PR description |
-| `draft` | No | Create as draft PR |
-| `update_description` | No | Update PR description on re-run |
-| `assignees` | No | List of assignees |
-| `labels` | No | List of labels |
+| Parameter            | Required | Description                     |
+| -------------------- | -------- | ------------------------------- |
+| `url`                | Yes      | Repository URL                  |
+| `destination_ref`    | Yes      | Target branch for the PR        |
+| `pr_branch`          | No       | Branch name for the PR          |
+| `title`              | No       | PR title                        |
+| `body`               | No       | PR description                  |
+| `draft`              | No       | Create as draft PR              |
+| `update_description` | No       | Update PR description on re-run |
+| `assignees`          | No       | List of assignees               |
+| `labels`             | No       | List of labels                  |
 
 ### Examples
 
@@ -142,7 +142,8 @@ Please review and merge.
 ```
 
 <Aside type="tip">
-Use `${CONTEXT_REFERENCE}` in `pr_branch` to create unique branch names based on the source commit.
+  Use `${CONTEXT_REFERENCE}` in `pr_branch` to create unique branch names based
+  on the source commit.
 </Aside>
 
 ## git.gerrit_destination
@@ -159,13 +160,13 @@ destination = git.gerrit_destination(
 
 ### Parameters
 
-| Parameter | Description |
-|-----------|-------------|
-| `url` | Gerrit repository URL |
-| `fetch` | Branch to fetch |
-| `push_to_refs_for` | Target branch for the CL |
-| `submit` | Auto-submit after creating |
-| `notify` | Notification setting |
+| Parameter          | Description                |
+| ------------------ | -------------------------- |
+| `url`              | Gerrit repository URL      |
+| `fetch`            | Branch to fetch            |
+| `push_to_refs_for` | Target branch for the CL   |
+| `submit`           | Auto-submit after creating |
+| `notify`           | Notification setting       |
 
 ```starlark
 destination = git.gerrit_destination(
@@ -211,7 +212,8 @@ destination = git.destination(
 ```
 
 <Aside type="note">
-Use `skip_push = True` during development to see what would be pushed without modifying the destination.
+  Use `skip_push = True` during development to see what would be pushed without
+  modifying the destination.
 </Aside>
 
 ## Force Push Behavior
@@ -230,7 +232,7 @@ java -jar copybara.jar migrate copy.bara.sky --force
 ```
 
 <Aside type="caution">
-Use `--force` carefully - it will overwrite destination history.
+  Use `--force` carefully - it will overwrite destination history.
 </Aside>
 
 ## Authentication

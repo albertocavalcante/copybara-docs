@@ -3,7 +3,7 @@ title: Documentation Sync
 description: Syncing documentation between internal and customer-facing repositories
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Documentation Sync
 
@@ -112,8 +112,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'docs/public/**'
-      - 'docs/customer/**'
+      - "docs/public/**"
+      - "docs/customer/**"
   workflow_dispatch:
 
 jobs:
@@ -128,7 +128,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
 
       - name: Download Copybara
         run: |
@@ -163,9 +163,11 @@ This is visible to customers.
 Public usage instructions here.
 
 <!-- BEGIN INTERNAL -->
+
 ### Internal Debug Mode
 
 This section is stripped during sync.
+
 <!-- END INTERNAL -->
 
 ## Support
@@ -253,7 +255,8 @@ core.replace(
 ```
 
 <Aside type="tip">
-For complex frontmatter manipulation, consider pre-processing with a script before Copybara runs.
+  For complex frontmatter manipulation, consider pre-processing with a script
+  before Copybara runs.
 </Aside>
 
 ## Complete Workflow

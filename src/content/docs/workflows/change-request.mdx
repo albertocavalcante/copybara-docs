@@ -3,7 +3,7 @@ title: CHANGE_REQUEST Mode
 description: Creating pull requests and change lists instead of direct pushes
 ---
 
-import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside, Steps, Tabs, TabItem } from "@astrojs/starlight/components";
 
 # CHANGE_REQUEST Mode
 
@@ -66,22 +66,22 @@ core.workflow(
 
 ### Key Parameters
 
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `url` | Destination repository URL | `https://github.com/org/repo` |
-| `destination_ref` | Target branch for PR | `main` |
-| `pr_branch` | Branch name for the PR | `copybara/sync-${CONTEXT_REFERENCE}` |
-| `title` | PR title | `Sync from internal` |
-| `body` | PR description | `Automated sync...` |
+| Parameter         | Description                | Example                              |
+| ----------------- | -------------------------- | ------------------------------------ |
+| `url`             | Destination repository URL | `https://github.com/org/repo`        |
+| `destination_ref` | Target branch for PR       | `main`                               |
+| `pr_branch`       | Branch name for the PR     | `copybara/sync-${CONTEXT_REFERENCE}` |
+| `title`           | PR title                   | `Sync from internal`                 |
+| `body`            | PR description             | `Automated sync...`                  |
 
 ### Dynamic Variables
 
 You can use variables in `pr_branch` and `title`:
 
-| Variable | Value |
-|----------|-------|
-| `${CONTEXT_REFERENCE}` | Origin commit SHA (short) |
-| `${COPYBARA_CONTEXT_REFERENCE}` | Same as above |
+| Variable                        | Value                     |
+| ------------------------------- | ------------------------- |
+| `${CONTEXT_REFERENCE}`          | Origin commit SHA (short) |
+| `${COPYBARA_CONTEXT_REFERENCE}` | Same as above             |
 
 ```starlark
 pr_branch = "copybara/sync-${CONTEXT_REFERENCE}",
@@ -180,7 +180,8 @@ When you run Copybara multiple times:
 3. **PR merged**: Next run creates a new PR
 
 <Aside type="tip">
-Use `update_description = True` to keep the PR description in sync with the latest changes.
+  Use `update_description = True` to keep the PR description in sync with the
+  latest changes.
 </Aside>
 
 ## Gerrit CL Destination
@@ -217,6 +218,7 @@ ssh-add ~/.ssh/id_ed25519
 ### Fine-Grained PAT (Recommended)
 
 Create a fine-grained PAT with:
+
 - **Repository access**: Only the destination repo
 - **Permissions**:
   - Contents: Read and write
@@ -233,7 +235,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'docs/public/**'
+      - "docs/public/**"
   workflow_dispatch:
 
 jobs:
@@ -248,7 +250,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
 
       - name: Download Copybara
         run: |
@@ -268,17 +270,17 @@ jobs:
 ```
 
 <Aside type="note">
-Use `--ignore-noop` to avoid failing when there are no changes to sync.
+  Use `--ignore-noop` to avoid failing when there are no changes to sync.
 </Aside>
 
 ## Handling PR States
 
-| Scenario | Copybara Behavior |
-|----------|-------------------|
-| PR doesn't exist | Creates new PR |
-| PR exists (open) | Updates PR branch (force push) |
-| PR exists (merged) | Creates new PR |
-| PR exists (closed) | Creates new PR |
+| Scenario           | Copybara Behavior              |
+| ------------------ | ------------------------------ |
+| PR doesn't exist   | Creates new PR                 |
+| PR exists (open)   | Updates PR branch (force push) |
+| PR exists (merged) | Creates new PR                 |
+| PR exists (closed) | Creates new PR                 |
 
 ## Troubleshooting
 
@@ -306,11 +308,11 @@ java -jar copybara.jar migrate copy.bara.sky sync-customer-docs --ignore-noop
 ## Best Practices
 
 <Steps>
-1. **Use descriptive PR titles**: Include context about what's being synced
-2. **Add labels**: Help reviewers identify automated PRs
-3. **Exclude manual files**: Use `destination_files` to protect hand-edited content
-4. **Verify no secrets**: Use `core.verify_match` to prevent leaks
-5. **Test locally**: Use `folder.destination()` to preview changes
+  1. **Use descriptive PR titles**: Include context about what's being synced 2.
+  **Add labels**: Help reviewers identify automated PRs 3. **Exclude manual
+  files**: Use `destination_files` to protect hand-edited content 4. **Verify no
+  secrets**: Use `core.verify_match` to prevent leaks 5. **Test locally**: Use
+  `folder.destination()` to preview changes
 </Steps>
 
 ## Next Steps

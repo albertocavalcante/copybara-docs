@@ -3,7 +3,7 @@ title: Custom Transformations
 description: Building reversible and complex transformations
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Custom Transformations
 
@@ -60,7 +60,8 @@ core.workflow(
 ```
 
 <Aside type="note">
-Not all transformations are reversible. `core.remove` and some replacements can't be reversed.
+  Not all transformations are reversible. `core.remove` and some replacements
+  can't be reversed.
 </Aside>
 
 ## Dynamic Transformations
@@ -82,14 +83,14 @@ core.dynamic_transform(
 
 ### Context Methods
 
-| Method | Description |
-|--------|-------------|
-| `ctx.run(glob)` | Get matching files |
-| `ctx.read_path(path)` | Read file contents |
+| Method                          | Description         |
+| ------------------------------- | ------------------- |
+| `ctx.run(glob)`                 | Get matching files  |
+| `ctx.read_path(path)`           | Read file contents  |
 | `ctx.write_path(path, content)` | Write file contents |
-| `ctx.success()` | Return success |
-| `ctx.noop(msg)` | Return no-op |
-| `ctx.error(msg)` | Return error |
+| `ctx.success()`                 | Return success      |
+| `ctx.noop(msg)`                 | Return no-op        |
+| `ctx.error(msg)`                | Return error        |
 
 ## Conditional Transformations
 

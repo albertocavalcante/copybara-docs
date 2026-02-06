@@ -34,6 +34,7 @@ java -jar copybara.jar migrate copy.bara.sky export \
 ```
 
 Then inspect:
+
 ```bash
 find /tmp/output -type f
 diff -r /tmp/output expected/
@@ -64,6 +65,7 @@ core.workflow(
 ```
 
 Run locally:
+
 ```bash
 java -jar copybara.jar migrate copy.bara.sky test-transforms \
   --folder-origin /path/to/source \

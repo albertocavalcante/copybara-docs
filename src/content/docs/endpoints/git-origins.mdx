@@ -3,7 +3,7 @@ title: Git Origins
 description: Reading code from Git repositories
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Git Origins
 
@@ -22,14 +22,14 @@ origin = git.origin(
 
 ### Parameters
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `url` | Yes | Repository URL (HTTPS or SSH) |
-| `ref` | No | Branch, tag, or commit (default: `main`) |
-| `submodules` | No | How to handle submodules |
-| `include_branch_commit_logs` | No | Include branch commit logs |
-| `first_parent` | No | Only follow first parent of merges |
-| `partial_fetch` | No | Enable partial clone |
+| Parameter                    | Required | Description                              |
+| ---------------------------- | -------- | ---------------------------------------- |
+| `url`                        | Yes      | Repository URL (HTTPS or SSH)            |
+| `ref`                        | No       | Branch, tag, or commit (default: `main`) |
+| `submodules`                 | No       | How to handle submodules                 |
+| `include_branch_commit_logs` | No       | Include branch commit logs               |
+| `first_parent`               | No       | Only follow first parent of merges       |
+| `partial_fetch`              | No       | Enable partial clone                     |
 
 ### Examples
 
@@ -80,11 +80,11 @@ origin = git.github_origin(
 
 ### Additional Parameters
 
-| Parameter | Description |
-|-----------|-------------|
-| `review_state` | Only process commits with this review state |
-| `review_approvers` | Users whose approval counts |
-| `api_checker` | Custom API checker |
+| Parameter          | Description                                 |
+| ------------------ | ------------------------------------------- |
+| `review_state`     | Only process commits with this review state |
+| `review_approvers` | Users whose approval counts                 |
+| `api_checker`      | Custom API checker                          |
 
 ```starlark
 # Only sync approved commits
@@ -97,7 +97,8 @@ origin = git.github_origin(
 ```
 
 <Aside type="note">
-`git.github_origin` provides access to GitHub-specific metadata like PR labels, review status, and issue references.
+  `git.github_origin` provides access to GitHub-specific metadata like PR
+  labels, review status, and issue references.
 </Aside>
 
 ## git.github_pr_origin
@@ -113,14 +114,14 @@ origin = git.github_pr_origin(
 
 ### Parameters
 
-| Parameter | Description |
-|-----------|-------------|
-| `url` | Repository URL |
-| `branch` | Base branch for PRs |
-| `state` | PR state filter (`OPEN`, `CLOSED`, `ALL`) |
-| `labels` | Only PRs with these labels |
-| `required_labels` | Labels that must be present |
-| `required_status_context_names` | CI checks that must pass |
+| Parameter                       | Description                               |
+| ------------------------------- | ----------------------------------------- |
+| `url`                           | Repository URL                            |
+| `branch`                        | Base branch for PRs                       |
+| `state`                         | PR state filter (`OPEN`, `CLOSED`, `ALL`) |
+| `labels`                        | Only PRs with these labels                |
+| `required_labels`               | Labels that must be present               |
+| `required_status_context_names` | CI checks that must pass                  |
 
 ### Examples
 
@@ -160,10 +161,10 @@ origin = git.gerrit_origin(
 
 ### Parameters
 
-| Parameter | Description |
-|-----------|-------------|
-| `url` | Gerrit repository URL |
-| `ref` | Reference to sync |
+| Parameter           | Description             |
+| ------------------- | ----------------------- |
+| `url`               | Gerrit repository URL   |
+| `ref`               | Reference to sync       |
 | `change_number_url` | URL pattern for changes |
 
 ## Submodule Handling
@@ -179,23 +180,25 @@ origin = git.origin(
 ```
 
 Options:
+
 - `"NO"` - Ignore submodules (default)
 - `"YES"` - Initialize submodules (one level)
 - `"RECURSIVE"` - Recursively initialize all submodules
 
 <Aside type="caution">
-Submodule processing can significantly increase sync time for repositories with many submodules.
+  Submodule processing can significantly increase sync time for repositories
+  with many submodules.
 </Aside>
 
 ## Version Selection
 
 The `ref` parameter accepts:
 
-| Type | Example | Description |
-|------|---------|-------------|
-| Branch | `main` | Head of branch |
-| Tag | `v1.0.0` | Specific tag |
-| Commit | `abc123` | Specific commit |
+| Type     | Example           | Description        |
+| -------- | ----------------- | ------------------ |
+| Branch   | `main`            | Head of branch     |
+| Tag      | `v1.0.0`          | Specific tag       |
+| Commit   | `abc123`          | Specific commit    |
 | Full ref | `refs/heads/main` | Full Git reference |
 
 ```starlark

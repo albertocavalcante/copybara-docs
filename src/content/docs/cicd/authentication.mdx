@@ -3,7 +3,7 @@ title: Authentication
 description: Configuring authentication for Copybara
 ---
 
-import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
 
 # Authentication
 
@@ -11,13 +11,13 @@ Copybara needs authentication to read from origins and write to destinations.
 
 ## Authentication Methods
 
-| Method | Use Case | Security |
-|--------|----------|----------|
-| Personal Access Token (Classic) | Quick setup | Medium |
-| Fine-Grained Token | Scoped access | High |
-| SSH Key | Traditional Git auth | Medium |
-| Deploy Key | Single repo write | High |
-| GitHub App | Enterprise automation | High |
+| Method                          | Use Case              | Security |
+| ------------------------------- | --------------------- | -------- |
+| Personal Access Token (Classic) | Quick setup           | Medium   |
+| Fine-Grained Token              | Scoped access         | High     |
+| SSH Key                         | Traditional Git auth  | Medium   |
+| Deploy Key                      | Single repo write     | High     |
+| GitHub App                      | Enterprise automation | High     |
 
 ## Personal Access Token (Classic)
 
@@ -41,6 +41,7 @@ echo "https://x-access-token:${TOKEN}@github.com" > ~/.git-credentials
 ```
 
 In GitHub Actions:
+
 ```yaml
 - name: Configure Git
   run: |
@@ -82,7 +83,8 @@ echo "https://x-access-token:${FINE_GRAINED_TOKEN}@github.com" > ~/.git-credenti
 </Tabs>
 
 <Aside type="tip">
-Fine-grained tokens can be scoped to specific repositories, limiting blast radius if compromised.
+  Fine-grained tokens can be scoped to specific repositories, limiting blast
+  radius if compromised.
 </Aside>
 
 ## SSH Key
@@ -93,6 +95,7 @@ Traditional Git authentication:
 <TabItem label="Setup">
 
 1. Generate SSH key:
+
    ```bash
    ssh-keygen -t ed25519 -C "copybara@example.com"
    ```
@@ -113,6 +116,7 @@ GIT_SSH_COMMAND="ssh -i ~/.ssh/copybara_key" java -jar copybara.jar ...
 ```
 
 In GitHub Actions:
+
 ```yaml
 - name: Configure SSH
   run: |
@@ -126,6 +130,7 @@ In GitHub Actions:
 </Tabs>
 
 Use SSH URL in config:
+
 ```starlark
 destination = git.destination(
     url = "git@github.com:org/repo.git",
@@ -141,6 +146,7 @@ SSH key scoped to a single repository:
 <TabItem label="Setup">
 
 1. Generate SSH key:
+
    ```bash
    ssh-keygen -t ed25519 -C "copybara-deploy" -f copybara_deploy
    ```
@@ -154,6 +160,7 @@ SSH key scoped to a single repository:
 <TabItem label="Usage">
 
 Same as SSH key:
+
 ```yaml
 - name: Configure Deploy Key
   run: |
@@ -167,7 +174,8 @@ Same as SSH key:
 </Tabs>
 
 <Aside type="note">
-Deploy keys only work for one repository. Use a GitHub App or PAT for multi-repo workflows.
+  Deploy keys only work for one repository. Use a GitHub App or PAT for
+  multi-repo workflows.
 </Aside>
 
 ## GitHub App
@@ -178,6 +186,7 @@ Best for enterprise and multi-repo automation:
 <TabItem label="Setup">
 
 1. Create GitHub App:
+
    - Organization Settings → Developer settings → GitHub Apps
    - New GitHub App
    - Set permissions:
@@ -233,6 +242,7 @@ For workflows accessing multiple repositories:
 ```
 
 Or use separate credentials:
+
 ```yaml
 - name: Configure credentials
   run: |

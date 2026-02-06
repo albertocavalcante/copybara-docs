@@ -3,7 +3,7 @@ title: GitHub Actions
 description: Running Copybara in GitHub Actions workflows
 ---
 
-import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
 
 # GitHub Actions
 
@@ -26,13 +26,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for Copybara
+          fetch-depth: 0 # Full history for Copybara
 
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
 
       - name: Download Copybara
         run: |
@@ -59,7 +59,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'src/**'  # Only when source changes
+      - "src/**" # Only when source changes
 ```
 
 ### Scheduled
@@ -67,7 +67,7 @@ on:
 ```yaml
 on:
   schedule:
-    - cron: '0 0 * * *'  # Daily at midnight
+    - cron: "0 0 * * *" # Daily at midnight
 ```
 
 ### Manual
@@ -77,7 +77,7 @@ on:
   workflow_dispatch:
     inputs:
       init_history:
-        description: 'Initialize full history'
+        description: "Initialize full history"
         type: boolean
         default: false
 ```
@@ -130,6 +130,7 @@ Speed up workflows by caching:
 ```
 
 Required token permissions:
+
 - `repo` (full control) - or fine-grained with Contents + Pull requests
 
 </TabItem>
@@ -145,6 +146,7 @@ Required token permissions:
 ```
 
 Use SSH URL in config:
+
 ```starlark
 destination = git.destination(
     url = "git@github.com:org/repo.git",
@@ -230,7 +232,7 @@ inputs:
     required: true
   init-history:
     description: Initialize full history
-    default: 'false'
+    default: "false"
 
 runs:
   using: composite
@@ -239,7 +241,7 @@ runs:
       uses: actions/setup-java@v4
       with:
         distribution: temurin
-        java-version: '21'
+        java-version: "21"
 
     - name: Cache Copybara
       uses: actions/cache@v4
@@ -291,12 +293,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'src/**'
-      - 'docs/**'
+      - "src/**"
+      - "docs/**"
   workflow_dispatch:
     inputs:
       init_history:
-        description: 'Initialize full history (first-time sync)'
+        description: "Initialize full history (first-time sync)"
         type: boolean
         default: false
 
@@ -320,7 +322,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
 
       - name: Cache Copybara
         uses: actions/cache@v4

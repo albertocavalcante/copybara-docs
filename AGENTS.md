@@ -25,10 +25,10 @@ lefthook install   # Install git hooks
 
 ## Repository Layout
 
-| Path                    | Purpose                        |
-| ----------------------- | ------------------------------ |
-| `src/content/docs/`     | Documentation pages (MDX)      |
-| `src/assets/`           | Images and static assets       |
-| `public/`               | Public static files            |
-| `astro.config.ts`       | Astro/Starlight configuration  |
-| `.github/workflows/`    | CI/CD workflows                |
+| Path                 | Purpose                       |
+| -------------------- | ----------------------------- |
+| `src/content/docs/`  | Documentation pages (MDX)     |
+| `src/assets/`        | Images and static assets      |
+| `public/`            | Public static files           |
+| `astro.config.ts`    | Astro/Starlight configuration |
+| `.github/workflows/` | CI/CD workflows               |

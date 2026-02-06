@@ -16,13 +16,15 @@ hero:
       variant: minimal
 ---
 
-import { Card, CardGrid, Aside } from '@astrojs/starlight/components';
+import { Card, CardGrid, Aside } from "@astrojs/starlight/components";
 
 <Aside type="caution" title="Unofficial Documentation">
-This is **community-maintained documentation**, not official Google documentation. For official resources, see:
-- [Official Repository](https://github.com/google/copybara)
-- [Official Reference](https://github.com/google/copybara/blob/master/docs/reference.md)
-- [Official Examples](https://github.com/google/copybara/blob/master/docs/examples.md)
+  This is **community-maintained documentation**, not official Google
+  documentation. For official resources, see: - [Official
+  Repository](https://github.com/google/copybara) - [Official
+  Reference](https://github.com/google/copybara/blob/master/docs/reference.md) -
+  [Official
+  Examples](https://github.com/google/copybara/blob/master/docs/examples.md)
 </Aside>
 
 ## What is Copybara?
@@ -35,18 +37,24 @@ Copybara is Google's tool for **transforming and moving code between repositorie
 - **Syncing** subsets of monorepos to standalone repositories
 
 <CardGrid stagger>
-	<Card title="Workflows" icon="setting">
-		Learn about [SQUASH, ITERATIVE, and CHANGE_REQUEST](/copybara-docs/workflows/overview/) modes for different sync scenarios.
-	</Card>
-	<Card title="Transformations" icon="pencil">
-		[Move files, replace text, filter content](/copybara-docs/transformations/overview/), and verify no secrets are leaked.
-	</Card>
-	<Card title="GitHub Integration" icon="github">
-		Create [pull requests automatically](/copybara-docs/endpoints/github/) instead of direct pushes.
-	</Card>
-	<Card title="CI/CD" icon="rocket">
-		Run Copybara in [GitHub Actions](/copybara-docs/cicd/github-actions/) with automated triggers.
-	</Card>
+  <Card title="Workflows" icon="setting">
+    Learn about [SQUASH, ITERATIVE, and
+    CHANGE_REQUEST](/copybara-docs/workflows/overview/) modes for different sync
+    scenarios.
+  </Card>
+  <Card title="Transformations" icon="pencil">
+    [Move files, replace text, filter
+    content](/copybara-docs/transformations/overview/), and verify no secrets
+    are leaked.
+  </Card>
+  <Card title="GitHub Integration" icon="github">
+    Create [pull requests automatically](/copybara-docs/endpoints/github/)
+    instead of direct pushes.
+  </Card>
+  <Card title="CI/CD" icon="rocket">
+    Run Copybara in [GitHub Actions](/copybara-docs/cicd/github-actions/) with
+    automated triggers.
+  </Card>
 </CardGrid>
 
 ## Quick Example
@@ -73,13 +81,13 @@ core.workflow(
 
 ## Why Copybara?
 
-| Feature | Benefit |
-|---------|---------|
-| **Declarative config** | Define what you want, not how to do it |
-| **Bidirectional** | Export and import between any repositories |
-| **Transformations** | Modify paths, content, and metadata during sync |
-| **State tracking** | Automatically tracks what's been synced |
-| **PR-based** | Create PRs instead of direct pushes |
+| Feature                | Benefit                                         |
+| ---------------------- | ----------------------------------------------- |
+| **Declarative config** | Define what you want, not how to do it          |
+| **Bidirectional**      | Export and import between any repositories      |
+| **Transformations**    | Modify paths, content, and metadata during sync |
+| **State tracking**     | Automatically tracks what's been synced         |
+| **PR-based**           | Create PRs instead of direct pushes             |
 
 ## Acknowledgements
 

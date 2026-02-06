@@ -3,7 +3,7 @@ title: Labels & Markers
 description: Using labels for state tracking and metadata
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Labels & Markers
 
@@ -20,7 +20,8 @@ GitOrigin-RevId: abc123def456789
 This label tells Copybara which origin commit was last synced.
 
 <Aside type="caution">
-Never remove `GitOrigin-RevId` labels. They're essential for incremental syncs.
+  Never remove `GitOrigin-RevId` labels. They're essential for incremental
+  syncs.
 </Aside>
 
 ## Exposing Labels
@@ -123,12 +124,12 @@ metadata.remove_label("Internal-Bug")
 
 Available variables in label templates:
 
-| Variable | Description |
-|----------|-------------|
-| `${COPYBARA_CONTEXT_REFERENCE}` | Origin commit SHA |
-| `${COPYBARA_CURRENT_TIME}` | Current timestamp |
-| `${COPYBARA_WORKFLOW_NAME}` | Workflow name |
-| `${label_name}` | Value of exposed label |
+| Variable                        | Description            |
+| ------------------------------- | ---------------------- |
+| `${COPYBARA_CONTEXT_REFERENCE}` | Origin commit SHA      |
+| `${COPYBARA_CURRENT_TIME}`      | Current timestamp      |
+| `${COPYBARA_WORKFLOW_NAME}`     | Workflow name          |
+| `${label_name}`                 | Value of exposed label |
 
 ## Complete Example
 
@@ -158,6 +159,7 @@ transformations = [
 ## Label Precedence
 
 When the same label appears multiple times:
+
 - First occurrence is used for `${label}` substitution
 - All occurrences are preserved in commit message (unless removed)
 
@@ -170,6 +172,7 @@ GitOrigin-RevId: <sha>
 ```
 
 This enables:
+
 - Incremental syncs (only new commits)
 - Tracking which origin commit produced each destination commit
 - State recovery after failures

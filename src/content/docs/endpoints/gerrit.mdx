@@ -3,7 +3,7 @@ title: Gerrit Integration
 description: Working with Gerrit code review system
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Gerrit Integration
 
@@ -24,10 +24,10 @@ origin = git.gerrit_origin(
 
 ### Parameters
 
-| Parameter | Description |
-|-----------|-------------|
-| `url` | Gerrit repository URL |
-| `ref` | Git reference to sync |
+| Parameter           | Description             |
+| ------------------- | ----------------------- |
+| `url`               | Gerrit repository URL   |
+| `ref`               | Git reference to sync   |
 | `change_number_url` | URL pattern for changes |
 
 ## Destinations
@@ -46,15 +46,15 @@ destination = git.gerrit_destination(
 
 ### Parameters
 
-| Parameter | Description |
-|-----------|-------------|
-| `url` | Gerrit repository URL |
-| `fetch` | Branch to fetch from |
+| Parameter          | Description              |
+| ------------------ | ------------------------ |
+| `url`              | Gerrit repository URL    |
+| `fetch`            | Branch to fetch from     |
 | `push_to_refs_for` | Target branch for the CL |
-| `submit` | Auto-submit if approved |
-| `notify` | Notification level |
-| `topic` | CL topic |
-| `change_id_policy` | How to handle Change-Id |
+| `submit`           | Auto-submit if approved  |
+| `notify`           | Notification level       |
+| `topic`            | CL topic                 |
+| `change_id_policy` | How to handle Change-Id  |
 
 ### Examples
 
@@ -122,6 +122,7 @@ destination = git.gerrit_destination(
 ```
 
 Options:
+
 - `"REQUIRE"` - Fail if Change-Id is missing
 - `"FAIL_IF_PRESENT"` - Fail if Change-Id exists
 - `"REUSE"` - Reuse existing Change-Id
@@ -183,7 +184,8 @@ ssh-add ~/.ssh/id_ed25519
 ```
 
 <Aside type="note">
-For Gerrit HTTP access, you may need to generate an HTTP password in Gerrit settings.
+  For Gerrit HTTP access, you may need to generate an HTTP password in Gerrit
+  settings.
 </Aside>
 
 ## Next Steps

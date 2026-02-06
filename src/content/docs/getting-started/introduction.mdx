@@ -3,7 +3,7 @@ title: Introduction to Copybara
 description: What is Copybara and why use it for code synchronization
 ---
 
-import { Aside, Steps } from '@astrojs/starlight/components';
+import { Aside, Steps } from "@astrojs/starlight/components";
 
 # Introduction to Copybara
 
@@ -30,10 +30,9 @@ Manually managing these workflows is error-prone and time-consuming. Copybara au
 ```
 
 <Steps>
-1. **Read** code from the origin repository
-2. **Transform** files (move, rename, replace content, filter)
-3. **Write** to the destination repository (commit or PR)
-4. **Track** state so only new changes are synced next time
+  1. **Read** code from the origin repository 2. **Transform** files (move,
+  rename, replace content, filter) 3. **Write** to the destination repository
+  (commit or PR) 4. **Track** state so only new changes are synced next time
 </Steps>
 
 ## Key Features
@@ -60,20 +59,22 @@ core.workflow(
 
 ### Multiple Workflow Modes
 
-| Mode | Use Case |
-|------|----------|
-| `SQUASH` | Combine all changes into a single commit |
-| `ITERATIVE` | Preserve individual commit history |
-| `CHANGE_REQUEST` | Create PRs/CLs for review |
+| Mode             | Use Case                                 |
+| ---------------- | ---------------------------------------- |
+| `SQUASH`         | Combine all changes into a single commit |
+| `ITERATIVE`      | Preserve individual commit history       |
+| `CHANGE_REQUEST` | Create PRs/CLs for review                |
 
 ### Bidirectional Sync
 
 Copybara supports both:
+
 - **Export**: Internal → External (open sourcing)
 - **Import**: External → Internal (accepting contributions)
 
 <Aside type="tip">
-You can define both directions in the same config file with different workflow names.
+  You can define both directions in the same config file with different workflow
+  names.
 </Aside>
 
 ## Architecture
@@ -87,12 +88,14 @@ Copybara is written in Java and uses:
 ## When to Use Copybara
 
 **Use Copybara when:**
+
 - You need to sync code between repositories automatically
 - Transformations are required (not a simple mirror)
 - You want PR-based workflows instead of direct pushes
 - State tracking is important (don't re-sync already-synced changes)
 
 **Consider alternatives when:**
+
 - Simple mirroring with no transformations (use `git push --mirror`)
 - One-time migration (use `git filter-branch` or similar)
 - Real-time sync (Copybara is batch-oriented)

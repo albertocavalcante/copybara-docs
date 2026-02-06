@@ -3,7 +3,7 @@ title: GitHub Integration
 description: Working with GitHub repositories, PRs, and APIs
 ---
 
-import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
 
 # GitHub Integration
 
@@ -46,7 +46,7 @@ origin = git.github_pr_origin(
 ```
 
 <Aside type="tip">
-Use `required_labels` to control which PRs are eligible for import.
+  Use `required_labels` to control which PRs are eligible for import.
 </Aside>
 
 ## Destinations
@@ -202,7 +202,8 @@ echo "https://x-access-token:${FINE_GRAINED_TOKEN}@github.com" > ~/.git-credenti
 </Tabs>
 
 <Aside type="tip">
-Fine-grained tokens are more secure because they can be scoped to specific repositories.
+  Fine-grained tokens are more secure because they can be scoped to specific
+  repositories.
 </Aside>
 
 ### SSH Key
@@ -222,10 +223,10 @@ origin = git.origin(
 
 Available in `github_pr_destination`:
 
-| Variable | Description |
-|----------|-------------|
-| `${CONTEXT_REFERENCE}` | Source commit SHA (short) |
-| `${COPYBARA_CONTEXT_REFERENCE}` | Same as above |
+| Variable                        | Description               |
+| ------------------------------- | ------------------------- |
+| `${CONTEXT_REFERENCE}`          | Source commit SHA (short) |
+| `${COPYBARA_CONTEXT_REFERENCE}` | Same as above             |
 
 ```starlark
 pr_branch = "copybara/sync-${CONTEXT_REFERENCE}",
@@ -236,15 +237,15 @@ title = "Sync: ${CONTEXT_REFERENCE}",
 
 When running multiple times:
 
-| Scenario | Behavior |
-|----------|----------|
-| PR doesn't exist | Create new PR |
+| Scenario         | Behavior                   |
+| ---------------- | -------------------------- |
+| PR doesn't exist | Create new PR              |
 | PR exists (open) | Update branch (force push) |
-| PR merged | Create new PR |
-| PR closed | Create new PR |
+| PR merged        | Create new PR              |
+| PR closed        | Create new PR              |
 
 <Aside type="note">
-Copybara reuses PR branches. To force a new PR, delete the branch first.
+  Copybara reuses PR branches. To force a new PR, delete the branch first.
 </Aside>
 
 ## Rate Limiting

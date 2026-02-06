@@ -3,7 +3,7 @@ title: Moving Files
 description: Restructuring file and directory layouts
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Moving Files
 
@@ -70,7 +70,7 @@ core.copy("templates/", "examples/")
 ```
 
 <Aside type="note">
-Unlike `core.move`, `core.copy` keeps the original files in place.
+  Unlike `core.move`, `core.copy` keeps the original files in place.
 </Aside>
 
 ## Overwrite Behavior
@@ -167,7 +167,7 @@ core.move("src/main.py", "lib/app.py")
 ```
 
 <Aside type="tip">
-Use trailing slashes for directories to be explicit about intent.
+  Use trailing slashes for directories to be explicit about intent.
 </Aside>
 
 ## Debugging Moves

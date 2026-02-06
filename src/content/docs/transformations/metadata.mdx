@@ -3,7 +3,7 @@ title: Metadata Transformations
 description: Modifying commit messages and metadata
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Metadata Transformations
 
@@ -23,14 +23,14 @@ metadata.squash_notes(
 
 ### Parameters
 
-| Parameter | Description |
-|-----------|-------------|
-| `prefix` | Text before the notes |
-| `show_author` | Include original authors |
-| `show_description` | Include original commit messages |
-| `oldest_first` | Order by oldest first (default: newest) |
-| `max` | Maximum number of notes to include |
-| `compact` | Use compact format |
+| Parameter          | Description                             |
+| ------------------ | --------------------------------------- |
+| `prefix`           | Text before the notes                   |
+| `show_author`      | Include original authors                |
+| `show_description` | Include original commit messages        |
+| `oldest_first`     | Order by oldest first (default: newest) |
+| `max`              | Maximum number of notes to include      |
+| `compact`          | Use compact format                      |
 
 ### Examples
 
@@ -72,11 +72,11 @@ metadata.add_header("Synced-From: internal-repo")
 
 ### Parameters
 
-| Parameter | Description |
-|-----------|-------------|
-| `text` | Text to add |
-| `new_line` | Add newline before header (default: True) |
-| `ignore_label_not_found` | Don't fail if label missing |
+| Parameter                | Description                               |
+| ------------------------ | ----------------------------------------- |
+| `text`                   | Text to add                               |
+| `new_line`               | Add newline before header (default: True) |
+| `ignore_label_not_found` | Don't fail if label missing               |
 
 ### Examples
 
@@ -123,7 +123,7 @@ transformations = [
 ```
 
 <Aside type="note">
-Labels are extracted from commit messages in the format `Label: value`.
+  Labels are extracted from commit messages in the format `Label: value`.
 </Aside>
 
 ## metadata.map_author
@@ -237,7 +237,8 @@ GitOrigin-RevId: abc123def456789
 This allows Copybara to track what's been synced.
 
 <Aside type="caution">
-Don't remove `GitOrigin-RevId` - it's used for state tracking. Removing it will cause Copybara to re-sync all changes.
+  Don't remove `GitOrigin-RevId` - it's used for state tracking. Removing it
+  will cause Copybara to re-sync all changes.
 </Aside>
 
 ## Next Steps

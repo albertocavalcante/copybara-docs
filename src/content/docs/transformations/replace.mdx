@@ -3,7 +3,7 @@ title: Text Replacement
 description: Finding and replacing text in files
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Text Replacement
 
@@ -102,7 +102,8 @@ core.replace(
 ```
 
 <Aside type="caution">
-Use `[\\s\\S]*?` for non-greedy multiline matching. Plain `.*` doesn't match newlines.
+  Use `[\\s\\S]*?` for non-greedy multiline matching. Plain `.*` doesn't match
+  newlines.
 </Aside>
 
 ## Removing Content
@@ -245,7 +246,8 @@ core.replace(
 ```
 
 <Aside type="note">
-In Starlark strings, backslashes need double escaping: `\\.` becomes `\\.` in the regex.
+  In Starlark strings, backslashes need double escaping: `\\.` becomes `\\.` in
+  the regex.
 </Aside>
 
 ## Debugging

@@ -3,7 +3,7 @@ title: Folder Origin & Destination
 description: Local filesystem operations for testing and development
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Folder Origin & Destination
 
@@ -19,8 +19,8 @@ origin = folder.origin()
 
 ### Parameters
 
-| Parameter | Description |
-|-----------|-------------|
+| Parameter                      | Description                      |
+| ------------------------------ | -------------------------------- |
 | `materialize_outside_symlinks` | Handle symlinks pointing outside |
 
 ### Usage
@@ -31,7 +31,8 @@ java -jar copybara.jar migrate copy.bara.sky workflow --folder-origin /path/to/s
 ```
 
 <Aside type="tip">
-The source path is provided via CLI, not in the config. This makes configs portable.
+  The source path is provided via CLI, not in the config. This makes configs
+  portable.
 </Aside>
 
 ## folder.destination
@@ -81,6 +82,7 @@ ls /tmp/output
 A common pattern during development:
 
 1. **Create test workflow**:
+
    ```starlark
    core.workflow(
        name = "test-local",
@@ -91,6 +93,7 @@ A common pattern during development:
    ```
 
 2. **Test locally**:
+
    ```bash
    java -jar copybara.jar migrate copy.bara.sky test-local \
      --folder-origin . \
@@ -98,6 +101,7 @@ A common pattern during development:
    ```
 
 3. **Verify output**:
+
    ```bash
    diff -r /tmp/test expected/
    ```
@@ -140,7 +144,8 @@ java -jar copybara.jar migrate copy.bara.sky preview \
 - **CLI paths**: Source/destination paths must be provided via CLI
 
 <Aside type="note">
-Folder operations are primarily for testing and development. Use Git origins/destinations for production workflows.
+  Folder operations are primarily for testing and development. Use Git
+  origins/destinations for production workflows.
 </Aside>
 
 ## Next Steps

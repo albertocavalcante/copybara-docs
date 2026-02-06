@@ -3,7 +3,7 @@ title: Core Concepts
 description: Understanding the fundamental concepts of Copybara
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Core Concepts
 
@@ -40,13 +40,13 @@ core.workflow(name = "import", ...)   # External → Internal
 
 An **origin** is where Copybara reads code from. The most common origins are:
 
-| Origin | Use Case |
-|--------|----------|
-| `git.origin` | Generic Git repository |
-| `git.github_origin` | GitHub with PR/issue integration |
-| `git.github_pr_origin` | Read from GitHub PRs |
-| `git.gerrit_origin` | Gerrit with CL integration |
-| `folder.origin` | Local filesystem |
+| Origin                 | Use Case                         |
+| ---------------------- | -------------------------------- |
+| `git.origin`           | Generic Git repository           |
+| `git.github_origin`    | GitHub with PR/issue integration |
+| `git.github_pr_origin` | Read from GitHub PRs             |
+| `git.gerrit_origin`    | Gerrit with CL integration       |
+| `folder.origin`        | Local filesystem                 |
 
 ```starlark
 origin = git.github_origin(
@@ -59,13 +59,13 @@ origin = git.github_origin(
 
 A **destination** is where Copybara writes code to:
 
-| Destination | Behavior |
-|-------------|----------|
-| `git.destination` | Push directly to a branch |
-| `git.github_destination` | Push to GitHub |
-| `git.github_pr_destination` | Create GitHub PRs |
-| `git.gerrit_destination` | Create Gerrit CLs |
-| `folder.destination` | Write to local filesystem |
+| Destination                 | Behavior                  |
+| --------------------------- | ------------------------- |
+| `git.destination`           | Push directly to a branch |
+| `git.github_destination`    | Push to GitHub            |
+| `git.github_pr_destination` | Create GitHub PRs         |
+| `git.gerrit_destination`    | Create Gerrit CLs         |
+| `folder.destination`        | Write to local filesystem |
 
 ```starlark
 # Direct push
@@ -82,7 +82,8 @@ destination = git.github_pr_destination(
 ```
 
 <Aside type="tip">
-Use `github_pr_destination` when you don't have direct push access or want changes reviewed before merging.
+  Use `github_pr_destination` when you don't have direct push access or want
+  changes reviewed before merging.
 </Aside>
 
 ## Transformations
@@ -99,12 +100,12 @@ transformations = [
 
 Common transformation types:
 
-| Transformation | Purpose |
-|----------------|---------|
-| `core.move` | Move/rename files or directories |
-| `core.copy` | Copy files (keep original) |
-| `core.remove` | Delete files matching a pattern |
-| `core.replace` | Text replacement (literal or regex) |
+| Transformation      | Purpose                             |
+| ------------------- | ----------------------------------- |
+| `core.move`         | Move/rename files or directories    |
+| `core.copy`         | Copy files (keep original)          |
+| `core.remove`       | Delete files matching a pattern     |
+| `core.replace`      | Text replacement (literal or regex) |
 | `core.verify_match` | Fail if pattern exists (or doesn't) |
 
 ## Globs
@@ -123,6 +124,7 @@ origin_files = glob(
 ```
 
 Pattern syntax:
+
 - `*` matches any characters except `/`
 - `**` matches any characters including `/`
 - `?` matches a single character
@@ -146,26 +148,28 @@ authoring = authoring.allowed(
 ```
 
 <Aside type="note">
-When importing external contributions, `pass_thru` preserves contributor credit.
+  When importing external contributions, `pass_thru` preserves contributor
+  credit.
 </Aside>
 
 ## Workflow Modes
 
 The **mode** determines how commits are created in the destination:
 
-| Mode | Behavior |
-|------|----------|
-| `SQUASH` | All origin changes → one destination commit |
-| `ITERATIVE` | Preserve individual commits |
-| `CHANGE_REQUEST` | Create PR/CL for review |
-| `CHANGE_REQUEST_FROM_SOT` | PR from source of truth |
+| Mode                      | Behavior                                    |
+| ------------------------- | ------------------------------------------- |
+| `SQUASH`                  | All origin changes → one destination commit |
+| `ITERATIVE`               | Preserve individual commits                 |
+| `CHANGE_REQUEST`          | Create PR/CL for review                     |
+| `CHANGE_REQUEST_FROM_SOT` | PR from source of truth                     |
 
 ```starlark
 mode = "SQUASH",  # Recommended for most workflows
 ```
 
 <Aside type="tip">
-`SQUASH` is recommended for most workflows because it creates cleaner history and avoids issues with complex merge histories.
+  `SQUASH` is recommended for most workflows because it creates cleaner history
+  and avoids issues with complex merge histories.
 </Aside>
 
 ## State Tracking
@@ -173,6 +177,7 @@ mode = "SQUASH",  # Recommended for most workflows
 Copybara tracks **state** to know what's already been synced:
 
 1. After syncing, Copybara adds a marker to commit messages:
+
    ```
    GitOrigin-RevId: abc123def456
    ```
@@ -227,6 +232,7 @@ metadata.add_header("Synced-From: internal")
 ```
 
 Labels can be used to:
+
 - Track relationships between commits
 - Add metadata to synced commits
 - Filter or route based on commit properties

@@ -3,7 +3,7 @@ title: Workflows Overview
 description: Understanding Copybara workflows and when to use each type
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Workflows Overview
 
@@ -44,12 +44,12 @@ core.feedback(
 
 The `mode` parameter in `core.workflow` determines how commits are created:
 
-| Mode | Description | Use Case |
-|------|-------------|----------|
-| `SQUASH` | Combine all changes into one commit | Most common, clean history |
-| `ITERATIVE` | Preserve individual commits | When history matters |
-| `CHANGE_REQUEST` | Create PR/CL for review | When approval is needed |
-| `CHANGE_REQUEST_FROM_SOT` | PR from source of truth | Bidirectional sync |
+| Mode                      | Description                         | Use Case                   |
+| ------------------------- | ----------------------------------- | -------------------------- |
+| `SQUASH`                  | Combine all changes into one commit | Most common, clean history |
+| `ITERATIVE`               | Preserve individual commits         | When history matters       |
+| `CHANGE_REQUEST`          | Create PR/CL for review             | When approval is needed    |
+| `CHANGE_REQUEST_FROM_SOT` | PR from source of truth             | Bidirectional sync         |
 
 ```starlark
 # Each mode has different behavior
@@ -59,7 +59,8 @@ mode = "CHANGE_REQUEST",    # Create PRs
 ```
 
 <Aside type="tip">
-Start with `SQUASH` mode - it's the simplest and handles edge cases well. Move to other modes only when you have specific requirements.
+  Start with `SQUASH` mode - it's the simplest and handles edge cases well. Move
+  to other modes only when you have specific requirements.
 </Aside>
 
 ## Workflow Anatomy
@@ -116,7 +117,8 @@ destination_files = glob(
 ```
 
 <Aside type="caution">
-If a file exists in the destination but is not in `destination_files`, Copybara will not touch it - even if the origin has that file.
+  If a file exists in the destination but is not in `destination_files`,
+  Copybara will not touch it - even if the origin has that file.
 </Aside>
 
 ## Running Workflows

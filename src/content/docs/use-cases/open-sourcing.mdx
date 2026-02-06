@@ -3,7 +3,7 @@ title: Open Sourcing Internal Code
 description: Exporting internal code to public repositories
 ---
 
-import { Aside, Steps } from '@astrojs/starlight/components';
+import { Aside, Steps } from "@astrojs/starlight/components";
 
 # Open Sourcing Internal Code
 
@@ -12,6 +12,7 @@ The most common Copybara use case: publishing internal code to public repositori
 ## The Challenge
 
 Internal code often contains:
+
 - Internal URLs and hostnames
 - References to internal systems
 - Internal-only documentation
@@ -99,6 +100,7 @@ core.workflow(
    - Which files contain sensitive information?
 
 2. **Configure origin_files**
+
    ```starlark
    origin_files = glob(
        include = ["src/**"],
@@ -107,11 +109,13 @@ core.workflow(
    ```
 
 3. **Add transformations**
+
    - Remove internal URLs
    - Clean up internal comments
    - Verify no secrets
 
 4. **Test locally**
+
    ```bash
    java -jar copybara.jar migrate copy.bara.sky export \
      --folder-destination /tmp/preview
@@ -122,6 +126,7 @@ core.workflow(
    java -jar copybara.jar migrate copy.bara.sky export \
      --init-history
    ```
+
 </Steps>
 
 ## Common Transformations
@@ -180,9 +185,7 @@ metadata.map_author({
 
 ## Security Checklist
 
-<Aside type="caution">
-Always verify no sensitive content is exported:
-</Aside>
+<Aside type="caution">Always verify no sensitive content is exported:</Aside>
 
 ```starlark
 transformations = [

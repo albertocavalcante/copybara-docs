@@ -3,7 +3,7 @@ title: Filtering & Verification
 description: Removing files and verifying content safety
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Filtering & Verification
 
@@ -66,7 +66,9 @@ transformations = [
 ```
 
 <Aside type="tip">
-Prefer `origin_files` for performance - files are never read. Use `core.remove` when you need to remove files based on content or after other transformations.
+  Prefer `origin_files` for performance - files are never read. Use
+  `core.remove` when you need to remove files based on content or after other
+  transformations.
 </Aside>
 
 ## destination_files
@@ -158,7 +160,8 @@ core.verify_match(
 ```
 
 <Aside type="caution">
-Regex patterns in Starlark need careful escaping. Test patterns before relying on them for security.
+  Regex patterns in Starlark need careful escaping. Test patterns before relying
+  on them for security.
 </Aside>
 
 ## Combining Filters

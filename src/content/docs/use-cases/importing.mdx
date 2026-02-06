@@ -3,7 +3,7 @@ title: Importing Contributions
 description: Bringing external contributions back to internal repositories
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Importing External Contributions
 
@@ -12,6 +12,7 @@ The reverse of open sourcing: importing pull requests from external contributors
 ## The Challenge
 
 External contributions need to:
+
 - Be reviewed internally before integration
 - Have paths adjusted for internal structure
 - Have internal references restored
@@ -94,7 +95,8 @@ destination = git.gerrit_destination(
 ```
 
 <Aside type="note">
-`CHANGE_REQUEST_FROM_SOT` mode creates a Gerrit CL for internal review before the changes land.
+  `CHANGE_REQUEST_FROM_SOT` mode creates a Gerrit CL for internal review before
+  the changes land.
 </Aside>
 
 ## To GitHub (Internal Repo)

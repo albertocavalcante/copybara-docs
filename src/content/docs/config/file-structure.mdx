@@ -3,7 +3,7 @@ title: Configuration File Structure
 description: Understanding copy.bara.sky file organization
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Configuration File Structure
 
@@ -34,10 +34,10 @@ core.workflow(
 
 ## File Naming
 
-| File | Purpose |
-|------|---------|
-| `copy.bara.sky` | Standard configuration file |
-| `*.bara.sky` | Any `.bara.sky` extension works |
+| File            | Purpose                         |
+| --------------- | ------------------------------- |
+| `copy.bara.sky` | Standard configuration file     |
+| `*.bara.sky`    | Any `.bara.sky` extension works |
 
 ## Variables
 
@@ -166,7 +166,7 @@ core.workflow(
 ```
 
 <Aside type="note">
-The `load` function imports symbols from other Starlark files.
+  The `load` function imports symbols from other Starlark files.
 </Aside>
 
 ## Comments
@@ -213,7 +213,7 @@ copy.bara.sky          # All workflows in one file
 ```
 
 <Aside type="tip">
-Start with a single file. Split when it becomes unwieldy.
+  Start with a single file. Split when it becomes unwieldy.
 </Aside>
 
 ## Complete Example

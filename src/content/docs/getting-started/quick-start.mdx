@@ -3,7 +3,7 @@ title: Quick Start
 description: Create your first Copybara workflow in minutes
 ---
 
-import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside, Steps, Tabs, TabItem } from "@astrojs/starlight/components";
 
 # Quick Start
 
@@ -76,7 +76,8 @@ java -jar copybara_deploy.jar validate copy.bara.sky export
 ```
 
 <Aside type="tip">
-Always validate before running to catch syntax errors and configuration issues.
+  Always validate before running to catch syntax errors and configuration
+  issues.
 </Aside>
 
 ## Step 3: Run the Initial Sync
@@ -88,6 +89,7 @@ java -jar copybara_deploy.jar migrate copy.bara.sky export --init-history
 ```
 
 This will:
+
 1. Read all commits from the origin
 2. Apply transformations
 3. Create commits in the destination
@@ -131,7 +133,8 @@ core.workflow(
 ```
 
 <Aside type="note">
-See [CHANGE_REQUEST mode](/copybara-docs/workflows/change-request/) for detailed PR workflow documentation.
+  See [CHANGE_REQUEST mode](/copybara-docs/workflows/change-request/) for
+  detailed PR workflow documentation.
 </Aside>
 
 ## Common Transformations

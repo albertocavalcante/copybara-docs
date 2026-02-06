@@ -3,7 +3,7 @@ title: Installation
 description: How to install and run Copybara
 ---
 
-import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside, Steps, Tabs, TabItem } from "@astrojs/starlight/components";
 
 # Installing Copybara
 
@@ -14,13 +14,16 @@ Copybara can be run in several ways: as a pre-built JAR, built from source, or v
 The easiest way to run Copybara is to download a pre-built release.
 
 <Steps>
+
 1. **Download the latest release**
+
    ```bash
    curl -fsSL -o copybara_deploy.jar \
      https://github.com/google/copybara/releases/download/v20251215/copybara_deploy.jar
    ```
 
 2. **Verify Java is installed** (Java 11+ required)
+
    ```bash
    java -version
    ```
@@ -29,13 +32,12 @@ The easiest way to run Copybara is to download a pre-built release.
    ```bash
    java -jar copybara_deploy.jar --help
    ```
+
 </Steps>
 
 <Aside type="tip">
-Create an alias for convenience:
-```bash
-alias copybara='java -jar /path/to/copybara_deploy.jar'
-```
+  Create an alias for convenience: `alias copybara='java -jar
+  /path/to/copybara_deploy.jar'`
 </Aside>
 
 ## Option 2: Build from Source
@@ -43,13 +45,16 @@ alias copybara='java -jar /path/to/copybara_deploy.jar'
 For the latest features or to contribute:
 
 <Steps>
+
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/google/copybara.git
    cd copybara
    ```
 
 2. **Build with Bazel**
+
    ```bash
    bazel build //java/com/google/copybara:copybara_deploy.jar
    ```
@@ -58,6 +63,7 @@ For the latest features or to contribute:
    ```bash
    java -jar bazel-bin/java/com/google/copybara/copybara_deploy.jar --help
    ```
+
 </Steps>
 
 ### Build Requirements
@@ -77,7 +83,8 @@ docker run -v $(pwd):/workspace \
 ```
 
 <Aside type="note">
-The official Docker image may lag behind releases. For the latest version, consider building your own image.
+  The official Docker image may lag behind releases. For the latest version,
+  consider building your own image.
 </Aside>
 
 ### Custom Docker Image
@@ -94,6 +101,7 @@ ENTRYPOINT ["java", "-jar", "/opt/copybara_deploy.jar"]
 ```
 
 Build and run:
+
 ```bash
 docker build -t copybara .
 docker run -v $(pwd):/workspace copybara /workspace/copy.bara.sky
@@ -120,6 +128,7 @@ java -jar copybara_deploy.jar validate test.bara.sky
 ```
 
 Expected output:
+
 ```
 Configuration validated successfully.
 ```

@@ -3,7 +3,7 @@ title: Feedback Workflows
 description: Reacting to events like PR merges and issue creation
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Feedback Workflows
 
@@ -43,12 +43,12 @@ origin = git.github_trigger(
 
 ### Supported Events
 
-| Event | Trigger |
-|-------|---------|
-| `pull_request` | PR opened, closed, merged, etc. |
-| `push` | Commits pushed to a branch |
-| `issue` | Issue opened, closed, etc. |
-| `issue_comment` | Comment on issue or PR |
+| Event           | Trigger                         |
+| --------------- | ------------------------------- |
+| `pull_request`  | PR opened, closed, merged, etc. |
+| `push`          | Commits pushed to a branch      |
+| `issue`         | Issue opened, closed, etc.      |
+| `issue_comment` | Comment on issue or PR          |
 
 ## GitHub API Destination
 
@@ -132,14 +132,14 @@ Please run Copybara to import these changes.
 
 The `ctx` object provides:
 
-| Property | Description |
-|----------|-------------|
-| `ctx.origin` | Access to origin events/data |
-| `ctx.destination` | API to perform actions |
-| `ctx.console` | Logging methods (`info`, `warn`, `error`) |
-| `ctx.success()` | Return successful result |
-| `ctx.noop(msg)` | Return no-op result |
-| `ctx.error(msg)` | Return error result |
+| Property          | Description                               |
+| ----------------- | ----------------------------------------- |
+| `ctx.origin`      | Access to origin events/data              |
+| `ctx.destination` | API to perform actions                    |
+| `ctx.console`     | Logging methods (`info`, `warn`, `error`) |
+| `ctx.success()`   | Return successful result                  |
+| `ctx.noop(msg)`   | Return no-op result                       |
+| `ctx.error(msg)`  | Return error result                       |
 
 ## Origin Methods
 
@@ -192,7 +192,8 @@ java -jar copybara.jar feedback copy.bara.sky notify-on-external-merge
 ```
 
 <Aside type="note">
-Feedback workflows are typically triggered by CI/CD systems in response to webhooks, not run manually.
+  Feedback workflows are typically triggered by CI/CD systems in response to
+  webhooks, not run manually.
 </Aside>
 
 ## Webhook Integration

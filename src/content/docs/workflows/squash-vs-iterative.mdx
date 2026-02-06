@@ -3,7 +3,7 @@ title: SQUASH vs ITERATIVE
 description: Choosing between squashing commits and preserving history
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # SQUASH vs ITERATIVE
 
@@ -43,14 +43,14 @@ Origin:              Destination:
 
 ## Feature Comparison
 
-| Feature | SQUASH | ITERATIVE |
-|---------|--------|-----------|
-| Commits created | 1 per sync | 1 per origin commit |
-| History preserved | No | Yes |
-| Handles merges | Gracefully | May fail |
-| Bisect-friendly | No | Yes |
-| Initial sync speed | Fast | Slower |
-| Complexity | Low | Higher |
+| Feature            | SQUASH     | ITERATIVE           |
+| ------------------ | ---------- | ------------------- |
+| Commits created    | 1 per sync | 1 per origin commit |
+| History preserved  | No         | Yes                 |
+| Handles merges     | Gracefully | May fail            |
+| Bisect-friendly    | No         | Yes                 |
+| Initial sync speed | Fast       | Slower              |
+| Complexity         | Low        | Higher              |
 
 ## When to Use SQUASH
 
@@ -117,7 +117,8 @@ core.workflow(
 ```
 
 <Aside type="caution">
-ITERATIVE mode can fail on merge commits. If your origin has a complex merge history, use SQUASH instead.
+  ITERATIVE mode can fail on merge commits. If your origin has a complex merge
+  history, use SQUASH instead.
 </Aside>
 
 ### ITERATIVE Commit Messages
@@ -175,17 +176,18 @@ Origin:                    Destination:
 ```
 
 <Aside type="tip">
-If you must use ITERATIVE with merges, ensure your origin has a linear history (rebased, no merge commits).
+  If you must use ITERATIVE with merges, ensure your origin has a linear history
+  (rebased, no merge commits).
 </Aside>
 
 ## Performance Comparison
 
 ### Initial Sync
 
-| Mode | 100 commits | 1000 commits | 10000 commits |
-|------|-------------|--------------|---------------|
-| SQUASH | Fast | Fast | Fast |
-| ITERATIVE | Moderate | Slow | Very slow |
+| Mode      | 100 commits | 1000 commits | 10000 commits |
+| --------- | ----------- | ------------ | ------------- |
+| SQUASH    | Fast        | Fast         | Fast          |
+| ITERATIVE | Moderate    | Slow         | Very slow     |
 
 SQUASH processes all changes at once; ITERATIVE must process each commit individually.
 

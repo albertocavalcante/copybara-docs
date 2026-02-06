@@ -3,7 +3,7 @@ title: Automation Patterns
 description: Common patterns for automating Copybara workflows
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Automation Patterns
 
@@ -20,7 +20,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'src/**'
+      - "src/**"
 
 jobs:
   sync:
@@ -43,7 +43,7 @@ name: Scheduled Sync
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Daily at midnight
+    - cron: "0 0 * * *" # Daily at midnight
 
 jobs:
   sync:
@@ -68,15 +68,15 @@ on:
   workflow_dispatch:
     inputs:
       workflow:
-        description: 'Workflow to run'
+        description: "Workflow to run"
         required: true
-        default: 'export'
+        default: "export"
         type: choice
         options:
           - export
           - import
       init_history:
-        description: 'Initialize history (first-time sync)'
+        description: "Initialize history (first-time sync)"
         type: boolean
         default: false
 
@@ -257,7 +257,7 @@ jobs:
   approve:
     needs: preview
     runs-on: ubuntu-latest
-    environment: production  # Requires approval
+    environment: production # Requires approval
     steps:
       - run: echo "Approved!"
 
@@ -321,11 +321,12 @@ Prevent parallel syncs:
 ```yaml
 concurrency:
   group: copybara-${{ github.workflow }}
-  cancel-in-progress: false  # Don't cancel running syncs
+  cancel-in-progress: false # Don't cancel running syncs
 ```
 
 <Aside type="tip">
-Set `cancel-in-progress: false` to ensure syncs complete even if new commits arrive.
+  Set `cancel-in-progress: false` to ensure syncs complete even if new commits
+  arrive.
 </Aside>
 
 ## Next Steps

@@ -3,7 +3,7 @@ title: Glob Patterns
 description: File pattern matching in Copybara
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Glob Patterns
 
@@ -17,13 +17,13 @@ glob(["pattern1", "pattern2"])
 
 ## Pattern Characters
 
-| Pattern | Matches |
-|---------|---------|
-| `*` | Any characters except `/` |
-| `**` | Any characters including `/` (recursive) |
-| `?` | Single character |
-| `[abc]` | Character class |
-| `[!abc]` | Negated character class |
+| Pattern  | Matches                                  |
+| -------- | ---------------------------------------- |
+| `*`      | Any characters except `/`                |
+| `**`     | Any characters including `/` (recursive) |
+| `?`      | Single character                         |
+| `[abc]`  | Character class                          |
+| `[!abc]` | Negated character class                  |
 
 ## Examples
 
@@ -254,7 +254,7 @@ find /tmp/output -type f
 ```
 
 <Aside type="tip">
-When unsure, test with a narrow include pattern first, then expand.
+  When unsure, test with a narrow include pattern first, then expand.
 </Aside>
 
 ## Next Steps

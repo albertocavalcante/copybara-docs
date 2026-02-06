@@ -3,7 +3,7 @@ title: Transformations Overview
 description: Modifying code during synchronization
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 # Transformations
 
@@ -27,13 +27,13 @@ transformations = [
 
 ## Transformation Types
 
-| Category | Transformations |
-|----------|-----------------|
-| **File operations** | `core.move`, `core.copy`, `core.remove` |
-| **Text replacement** | `core.replace`, `core.filter_replace` |
-| **Verification** | `core.verify_match` |
-| **Metadata** | `metadata.squash_notes`, `metadata.add_header`, etc. |
-| **Custom** | `core.transform` with reversal |
+| Category             | Transformations                                      |
+| -------------------- | ---------------------------------------------------- |
+| **File operations**  | `core.move`, `core.copy`, `core.remove`              |
+| **Text replacement** | `core.replace`, `core.filter_replace`                |
+| **Verification**     | `core.verify_match`                                  |
+| **Metadata**         | `metadata.squash_notes`, `metadata.add_header`, etc. |
+| **Custom**           | `core.transform` with reversal                       |
 
 ## Quick Reference
 
@@ -147,7 +147,8 @@ core.transform(
 ```
 
 <Aside type="note">
-Copybara can validate reversibility with `reversible_check = True` in the workflow.
+  Copybara can validate reversibility with `reversible_check = True` in the
+  workflow.
 </Aside>
 
 ## Debugging Transformations

@@ -3,7 +3,7 @@ title: Workflow Modes
 description: Deep dive into SQUASH, ITERATIVE, CHANGE_REQUEST, and CHANGE_REQUEST_FROM_SOT modes
 ---
 
-import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
 
 # Workflow Modes
 
@@ -11,12 +11,12 @@ The `mode` parameter controls how Copybara creates commits in the destination re
 
 ## Mode Comparison
 
-| Mode | Commits | Destination | Review | Best For |
-|------|---------|-------------|--------|----------|
-| `SQUASH` | All → 1 | Direct push | No | Simple sync |
-| `ITERATIVE` | 1 → 1 | Direct push | No | History preservation |
-| `CHANGE_REQUEST` | All → 1 PR | PR/CL | Yes | External review |
-| `CHANGE_REQUEST_FROM_SOT` | All → 1 PR | PR/CL | Yes | Bidirectional |
+| Mode                      | Commits    | Destination | Review | Best For             |
+| ------------------------- | ---------- | ----------- | ------ | -------------------- |
+| `SQUASH`                  | All → 1    | Direct push | No     | Simple sync          |
+| `ITERATIVE`               | 1 → 1      | Direct push | No     | History preservation |
+| `CHANGE_REQUEST`          | All → 1 PR | PR/CL       | Yes    | External review      |
+| `CHANGE_REQUEST_FROM_SOT` | All → 1 PR | PR/CL       | Yes    | Bidirectional        |
 
 ## SQUASH Mode
 
@@ -62,7 +62,8 @@ GitOrigin-RevId: abc123def456
 - When dealing with complex merge histories
 
 <Aside type="tip">
-SQUASH is the safest mode - it handles edge cases like merge commits gracefully.
+  SQUASH is the safest mode - it handles edge cases like merge commits
+  gracefully.
 </Aside>
 
 ## ITERATIVE Mode
@@ -99,7 +100,8 @@ Origin commits:          Destination commits:
 - Larger initial sync time
 
 <Aside type="caution">
-ITERATIVE mode may fail on complex histories with merges. Consider SQUASH if you encounter issues.
+  ITERATIVE mode may fail on complex histories with merges. Consider SQUASH if
+  you encounter issues.
 </Aside>
 
 ## CHANGE_REQUEST Mode
@@ -153,7 +155,8 @@ git.github_pr_destination(
 ```
 
 <Aside type="note">
-See [CHANGE_REQUEST deep dive](/copybara-docs/workflows/change-request/) for complete documentation.
+  See [CHANGE_REQUEST deep dive](/copybara-docs/workflows/change-request/) for
+  complete documentation.
 </Aside>
 
 ## CHANGE_REQUEST_FROM_SOT Mode
