@@ -1,0 +1,221 @@
+---
+title: Glossary
+description: Definitions of terms and concepts used in Copybara documentation
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+# Glossary
+
+Quick reference for terminology used throughout this documentation. If you're new to code synchronization tools or coming from a different ecosystem, this page will help you understand the concepts.
+
+## Code Review Systems
+
+### Gerrit
+
+[Gerrit](https://www.gerritcodereview.com/) is an open-source, web-based code review tool developed by Google. It's widely used in enterprise environments and open-source projects (including Android, Chromium, and Go).
+
+**Key differences from GitHub:**
+
+- Uses "Change Lists" (CLs) instead of Pull Requests
+- Built-in support for multi-stage review workflows
+- Tighter integration with Git (changes are pushed to special refs)
+- Often used with [Bazel](https://bazel.build/) build system
+
+<Aside type="tip">
+  If you've only used GitHub, think of Gerrit as a more enterprise-focused
+  alternative with stricter review workflows.
+</Aside>
+
+### CL (Change List)
+
+A **Change List** (CL) is Gerrit's equivalent of a Pull Request. It represents a set of code changes submitted for review.
+
+When Copybara creates a CL, it pushes to Gerrit's special `refs/for/<branch>` reference, which triggers the review process.
+
+**Related:** [Gerrit Change Documentation](https://gerrit-review.googlesource.com/Documentation/concept-changes.html)
+
+### PR (Pull Request)
+
+A **Pull Request** (PR) is [GitHub](https://github.com/)'s mechanism for proposing code changes. GitLab calls these "Merge Requests" (MRs).
+
+When Copybara uses `git.github_pr_destination`, it creates a branch and opens a PR for review.
+
+**Related:** [GitHub Pull Request Documentation](https://docs.github.com/en/pull-requests)
+
+### Merge Request (MR)
+
+[GitLab](https://gitlab.com/)'s term for a Pull Request. Functionally equivalent to GitHub PRs.
+
+---
+
+## Copybara Concepts
+
+### Origin
+
+The **origin** is the source repository that Copybara reads code from. This is where your "source of truth" code lives.
+
+```starlark
+origin = git.github_origin(
+    url = "https://github.com/org/repo",
+    ref = "main",
+)
+```
+
+**Related:** [Origins & Destinations Overview](/endpoints/overview/)
+
+### Destination
+
+The **destination** is the target repository that Copybara writes code to. This is where transformed code ends up.
+
+```starlark
+destination = git.destination(
+    url = "https://github.com/org/public-repo",
+    push = "main",
+)
+```
+
+**Related:** [Origins & Destinations Overview](/endpoints/overview/)
+
+### Workflow
+
+A **workflow** is a named Copybara configuration that defines a complete sync operation: where to read from, where to write to, and what transformations to apply.
+
+```starlark
+core.workflow(
+    name = "export",
+    origin = ...,
+    destination = ...,
+    transformations = [...],
+)
+```
+
+You can define multiple workflows in a single config file (e.g., `export` and `import`).
+
+**Related:** [Workflow Modes](/workflows/modes/)
+
+### SOT (Source of Truth)
+
+The **Source of Truth** (SOT) is the authoritative repository where canonical code lives. Changes always flow FROM the SOT to mirrors, never the reverse (unless explicitly importing contributions).
+
+- For **export** workflows: Internal repo is SOT → External repo is mirror
+- For **import** workflows: External repo is SOT → Internal repo receives contributions
+
+**Related:** [Core Concepts](/getting-started/concepts/)
+
+### Transformation
+
+A **transformation** is a modification applied to code during the sync process. Transformations run in sequence and can move files, replace text, filter content, and more.
+
+```starlark
+transformations = [
+    core.move("internal/", "src/"),
+    core.replace("internal.corp.com", "example.com"),
+]
+```
+
+**Related:** [Transformations Overview](/transformations/overview/)
+
+---
+
+## Git Concepts
+
+### Squash
+
+**Squashing** combines multiple commits into a single commit. In Copybara's `SQUASH` mode, all origin changes since the last sync become one destination commit.
+
+```
+Commits A, B, C → Single commit "A + B + C"
+```
+
+**Related:** [SQUASH vs ITERATIVE](/workflows/squash-vs-iterative/)
+
+### Rebase
+
+**Rebasing** means reapplying commits on top of a different base commit. This creates a linear history without merge commits.
+
+Copybara's `ITERATIVE` mode works best with rebased (linear) histories.
+
+**Related:** [Git Rebase Documentation](https://git-scm.com/docs/git-rebase)
+
+### SHA / Commit Hash
+
+A **SHA** (Secure Hash Algorithm) or **commit hash** is a unique 40-character identifier for a Git commit (e.g., `abc123def456...`). Often abbreviated to 7-8 characters.
+
+Copybara tracks sync state using these hashes in the `GitOrigin-RevId` label.
+
+### Ref
+
+A **ref** (reference) is a human-readable name pointing to a commit. Common refs include:
+
+- Branch names: `main`, `develop`
+- Tags: `v1.0.0`
+- Special refs: `HEAD`, `refs/for/main` (Gerrit)
+
+### Merge Commit
+
+A **merge commit** has two or more parent commits, created when merging branches. Copybara's `ITERATIVE` mode may fail on merge commits; `SQUASH` handles them gracefully.
+
+---
+
+## Repository Patterns
+
+### Monorepo
+
+A **monorepo** (monolithic repository) is a single repository containing multiple projects, services, or components. Google, Meta, and Microsoft use monorepos internally.
+
+Copybara is often used to extract portions of a monorepo for open-source release.
+
+**Example:** Extracting `//third_party/project/` from an internal monorepo to a public GitHub repo.
+
+**Related:** [Monorepo Extraction Use Case](/use-cases/monorepo/)
+
+### Mirroring
+
+**Mirroring** keeps two repositories synchronized. Unlike simple `git push --mirror`, Copybara can apply transformations during mirroring.
+
+**Related:** [Mirroring Repos Use Case](/use-cases/mirroring/)
+
+---
+
+## Configuration
+
+### Starlark
+
+[Starlark](https://github.com/bazelbuild/starlark) is a Python-like configuration language created by Google. It's used by:
+
+- [Bazel](https://bazel.build/) - Google's build system
+- [Buck2](https://buck2.build/) - Meta's build system
+- **Copybara** - For `.bara.sky` config files
+
+Starlark is intentionally limited (no I/O, no infinite loops) to ensure configs are deterministic and fast to evaluate.
+
+**Related:** [Starlark Language Spec](https://github.com/bazelbuild/starlark/blob/master/spec.md)
+
+### Glob
+
+A **glob** is a pattern for matching file paths. Copybara uses globs to specify which files to include or exclude.
+
+| Pattern | Matches                                  |
+| ------- | ---------------------------------------- |
+| `*`     | Any characters except `/`                |
+| `**`    | Any characters including `/` (recursive) |
+| `?`     | Single character                         |
+
+```starlark
+glob(["src/**/*.js"], exclude = ["**/*_test.js"])
+```
+
+**Related:** [Glob Patterns](/config/glob-patterns/), [Glob Reference](/reference/glob/)
+
+### Bazel
+
+[Bazel](https://bazel.build/) is Google's open-source build system. It uses Starlark for configuration (`BUILD` files). Many Copybara users come from Bazel-based environments.
+
+---
+
+## See Also
+
+- [Core Concepts](/getting-started/concepts/) - Foundational Copybara concepts
+- [Introduction](/getting-started/introduction/) - What Copybara is and why use it
+- [GitHub Copybara Repository](https://github.com/google/copybara) - Official source code

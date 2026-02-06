@@ -129,6 +129,7 @@ export default defineConfig({
 				{
 					label: 'Reference',
 					items: [
+						{ label: 'Glossary', slug: 'reference/glossary' },
 						{ label: 'CLI Reference', slug: 'reference/cli' },
 						{ label: 'Core Module', slug: 'reference/core' },
 						{ label: 'Git Module', slug: 'reference/git' },

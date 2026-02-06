@@ -18,6 +18,14 @@ The `mode` parameter controls how Copybara creates commits in the destination re
 | `CHANGE_REQUEST`          | All → 1 PR | PR/CL       | Yes    | External review      |
 | `CHANGE_REQUEST_FROM_SOT` | All → 1 PR | PR/CL       | Yes    | Bidirectional        |
 
+<Aside type="note" title="PR vs CL">
+  **PR** (Pull Request) is [GitHub](https://github.com/)'s term for a code
+  review request. **CL** (Change List) is
+  [Gerrit](https://www.gerritcodereview.com/)'s equivalent. Copybara supports
+  both systems. See the [Glossary](/reference/glossary/#cl-change-list) for more
+  details.
+</Aside>
+
 ## SQUASH Mode
 
 The default and most commonly used mode. All origin changes are combined into a single destination commit.
