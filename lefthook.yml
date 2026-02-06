@@ -9,12 +9,12 @@ pre-commit:
   commands:
     # Check formatting with dprint
     dprint:
-      glob: "*.{md,mdx,json,yml,yaml}"
+      glob: "**/*.{md,mdx,json,yml,yaml}"
       run: dprint check {staged_files}
 
     # TypeScript/Astro check
     astro-check:
-      glob: "*.{ts,astro,mdx}"
+      glob: "**/*.{ts,astro,mdx}"
       run: bunx astro check
 
 pre-push:
