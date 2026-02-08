@@ -39,9 +39,17 @@ origin -> copybara -> destination
 | `git.origin`           | Generic Git repository      | Any Git repo       |
 | `git.github_origin`    | GitHub with API integration | GitHub repos       |
 | `git.github_pr_origin` | GitHub pull requests        | Importing PRs      |
+| `git.gitlab_origin`    | GitLab repository           | GitLab repos       |
+| `git.gitlab_mr_origin` | GitLab merge requests       | Importing MRs      |
 | `git.gerrit_origin`    | Gerrit with CL integration  | Gerrit repos       |
 | `git.github_trigger`   | GitHub events               | Feedback workflows |
 | `folder.origin`        | Local filesystem            | Testing, local ops |
+| `remotefiles.origin`   | Remote archives (ZIP, TAR)  | Non-Git sources    |
+
+<Aside type="note">
+  GitLab origins (`git.gitlab_origin`, `git.gitlab_mr_origin`) are experimental
+  and the API may change. See [GitLab Integration](/endpoints/gitlab/).
+</Aside>
 
 ## Available Destinations
 
@@ -50,9 +58,15 @@ origin -> copybara -> destination
 | `git.destination`           | Push to branch     | Direct sync        |
 | `git.github_destination`    | Push to GitHub     | GitHub repos       |
 | `git.github_pr_destination` | Create GitHub PRs  | PR-based sync      |
+| `git.gitlab_mr_destination` | Create GitLab MRs  | MR-based sync      |
 | `git.gerrit_destination`    | Create Gerrit CLs  | Gerrit repos       |
 | `git.github_api`            | GitHub API actions | Feedback workflows |
 | `folder.destination`        | Local filesystem   | Testing, preview   |
+
+<Aside type="note">
+  GitLab MR destination (`git.gitlab_mr_destination`) is experimental. See
+  [GitLab Integration](/endpoints/gitlab/).
+</Aside>
 
 ## Choosing an Origin
 
@@ -104,6 +118,19 @@ destination = git.destination(
 destination = git.github_pr_destination(
     url = "https://github.com/org/repo",
     destination_ref = "main",
+)
+```
+
+### Create GitLab MRs
+
+```starlark
+destination = git.gitlab_mr_destination(
+    url = "https://gitlab.com/org/repo",
+    credentials = credentials.username_password(
+        credentials.static_value("oauth2"),
+        credentials.static_secret("gitlab_token", "GITLAB_TOKEN"),
+    ),
+    target_branch = "main",
 )
 ```
 
@@ -171,3 +198,7 @@ See [Authentication guide](/cicd/authentication/) for details on:
 - [Git origins in detail](/endpoints/git-origins/)
 - [Git destinations in detail](/endpoints/git-destinations/)
 - [GitHub integration](/endpoints/github/)
+- [GitLab integration](/endpoints/gitlab/)
+- [Gerrit integration](/endpoints/gerrit/)
+- [Folder origin/destination](/endpoints/folder/)
+- [Remote files origin](/reference/remotefiles/)
