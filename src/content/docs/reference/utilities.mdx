@@ -1,0 +1,196 @@
+---
+title: Utility Modules
+description: Reference for utility modules - regex, datetime, hashing, HTML, Python
+---
+
+Smaller utility modules for common operations in custom transformations.
+
+## re2 Module
+
+Regular expression functions using RE2 syntax.
+
+### re2.compile
+
+Creates a compiled regex pattern.
+
+```starlark
+pattern = re2.compile("v([0-9]+)\\.([0-9]+)")
+if pattern.matches("v1.23"):
+    # Pattern matched
+    pass
+```
+
+### re2.quote
+
+Escapes a string for literal matching in regex:
+
+```starlark
+# Match literal "[test]" instead of character class
+escaped = re2.quote("[test]")
+pattern = re2.compile("prefix" + escaped + "suffix")
+```
+
+## datetime Module
+
+Date and time manipulation with timezone support.
+
+### datetime.now
+
+Returns current time in specified timezone:
+
+```starlark
+now = datetime.now(tz = "America/New_York")
+now = datetime.now(tz = "UTC")
+now = datetime.now(tz = "Europe/London")
+```
+
+### datetime.fromtimestamp
+
+Creates datetime from Unix epoch seconds:
+
+```starlark
+dt = datetime.fromtimestamp(
+    timestamp = 1704067200,
+    tz = "UTC",
+)
+```
+
+### StarlarkDateTime Methods
+
+```starlark
+now = datetime.now(tz = "UTC")
+
+# Get epoch seconds
+epoch = now.in_epoch_seconds()
+
+# Format as string (Java DateTimeFormatter patterns)
+formatted = now.strftime(format = "yyyy-MM-dd HH:mm:ss")
+formatted = now.strftime(format = "MMMM d, yyyy")
+```
+
+### Time Arithmetic
+
+Subtract two datetimes to get a time delta:
+
+```starlark
+start = datetime.fromtimestamp(timestamp = 1704067200, tz = "UTC")
+end = datetime.now(tz = "UTC")
+
+delta = end - start
+seconds_elapsed = delta.total_seconds()
+```
+
+## hashing Module
+
+Cryptographic hash functions for files and strings.
+
+### hashing.path_sha256_sum
+
+Hash a file with SHA-256:
+
+```starlark
+def _verify_checksum(ctx):
+    checksum = hashing.path_sha256_sum(ctx.path("vendor/lib.tar.gz"))
+    expected = "e3b0c44298fc1c149afbf4c8996fb924..."
+    if checksum != expected:
+        ctx.console.error("Checksum mismatch!")
+```
+
+### hashing.str_sha256_sum
+
+Hash strings with SHA-256:
+
+```starlark
+# Single string
+hash = hashing.str_sha256_sum(input = "hello world")
+
+# Multiple strings (concatenated then hashed)
+hash = hashing.str_sha256_sum(input = ["part1", "part2", "part3"])
+```
+
+### hashing.path_md5_sum
+
+MD5 hash (legacy systems only):
+
+```starlark
+# WARNING: Only use for legacy system compatibility
+md5 = hashing.path_md5_sum(ctx.path("file.bin"))
+```
+
+## html Module
+
+HTML parsing with XPath queries.
+
+### html.xpath
+
+Select elements from HTML content:
+
+```starlark
+def _extract_version(ctx):
+    content = ctx.read_path(ctx.path("docs/index.html"))
+    elements = html.xpath(
+        content = content,
+        expression = "//div[@class='version']/text()",
+    )
+    for elem in elements:
+        ctx.console.info("Found: " + elem.text())
+```
+
+Returns a list of `HtmlElement` objects. Only a subset of XPath is supported.
+
+## python Module
+
+Utilities for Python package management.
+
+### python.parse_metadata
+
+Extract metadata from Python package METADATA files:
+
+```starlark
+def _check_python_deps(ctx):
+    metadata = python.parse_metadata(
+        path = ctx.path("package-1.0.0.dist-info/METADATA"),
+    )
+    for key, value in metadata:
+        if key == "Requires-Dist":
+            ctx.console.info("Dependency: " + value)
+```
+
+Returns a list of `(key, value)` tuples from the METADATA file.
+
+## Use Cases
+
+### Version Stamping with Datetime
+
+```starlark
+def _stamp_version(ctx):
+    now = datetime.now(tz = "UTC")
+    version = now.strftime(format = "yyyy.MM.dd")
+    ctx.replace_contents(
+        path = ctx.path("version.txt"),
+        content = version,
+    )
+```
+
+### Integrity Verification
+
+```starlark
+def _verify_deps(ctx):
+    checksums = {
+        "vendor/lib.tar.gz": "abc123...",
+        "vendor/other.zip": "def456...",
+    }
+    for path, expected in checksums.items():
+        actual = hashing.path_sha256_sum(ctx.path(path))
+        if actual != expected:
+            fail("Checksum mismatch for " + path)
+```
+
+### Dynamic Pattern Matching
+
+```starlark
+def _find_todos(ctx):
+    # Match TODO(username): message
+    pattern = re2.compile("TODO\\(([^)]+)\\):\\s*(.*)")
+    # Use in transformation logic
+```

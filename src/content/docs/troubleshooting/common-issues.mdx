@@ -7,6 +7,23 @@ import { Aside } from "@astrojs/starlight/components";
 
 Solutions to frequently encountered Copybara problems.
 
+## Quick Reference by Error Message
+
+| Error Message               | Jump To                                  |
+| --------------------------- | ---------------------------------------- |
+| `No changes to migrate`     | [No changes](#no-changes-to-migrate)     |
+| `Authentication failed`     | [Auth issues](#authentication-failed)    |
+| `Permission denied`         | [Permissions](#permission-denied)        |
+| `Unknown field`             | [Config errors](#unknown-field)          |
+| `Missing required field`    | [Config errors](#missing-required-field) |
+| `Invalid glob pattern`      | [Glob errors](#invalid-glob-pattern)     |
+| `GitOrigin-RevId not found` | [State issues](#missing-gitorigin-revid) |
+| `Pattern not found`         | [Transform errors](#pattern-not-found)   |
+| `verify_match failed`       | [Verification](#verify_match-failed)     |
+| `OutOfMemoryError`          | [Memory issues](#memory-issues)          |
+| `Branch already exists`     | [PR issues](#branch-already-exists)      |
+| `rate limit exceeded`       | [Rate limiting](#rate-limiting)          |
+
 ## "No changes to migrate"
 
 **Cause**: No new commits since last sync.
@@ -195,7 +212,49 @@ java -jar copybara.jar migrate copy.bara.sky export --last-rev HEAD~100
 java -Xmx4g -jar copybara.jar migrate copy.bara.sky export
 ```
 
+## Rate Limiting
+
+**Symptoms**:
+
+- `rate limit exceeded`
+- `API rate limit exceeded for user`
+- HTTP 429 responses
+
+**Cause**: Too many API calls to GitHub/GitLab.
+
+**Solutions**:
+
+1. Add delays between operations:
+
+   ```bash
+   # Simple rate limiting wrapper
+   sleep 60 && java -jar copybara.jar migrate copy.bara.sky
+   ```
+
+2. Use authenticated requests (higher limits):
+
+   ```bash
+   # GitHub: 5000 requests/hour authenticated vs 60 unauthenticated
+   export GITHUB_TOKEN="ghp_..."
+   ```
+
+3. Reduce sync frequency in CI:
+
+   ```yaml
+   on:
+     schedule:
+       - cron: "0 */6 * * *" # Every 6 hours instead of every push
+   ```
+
+4. Check current rate limit status:
+
+   ```bash
+   curl -H "Authorization: token $GITHUB_TOKEN" \
+     https://api.github.com/rate_limit
+   ```
+
 ## Next Steps
 
 - [Debugging guide](/troubleshooting/debugging/)
+- [Performance guide](/guides/performance/)
 - [CLI reference](/reference/cli/)

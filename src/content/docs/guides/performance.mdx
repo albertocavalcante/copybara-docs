@@ -1,0 +1,313 @@
+---
+title: Performance & Scalability
+description: Optimizing Copybara for large repositories and high-volume workflows
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Strategies for running Copybara efficiently on large codebases.
+
+## Memory Configuration
+
+### JVM Heap Size
+
+Large repositories require more memory. Set the heap size with `-Xmx`:
+
+```bash
+# Default (may be insufficient for large repos)
+java -jar copybara.jar migrate copy.bara.sky
+
+# 4GB heap for medium repos (10k-50k files)
+java -Xmx4g -jar copybara.jar migrate copy.bara.sky
+
+# 8GB heap for large repos (50k-200k files)
+java -Xmx8g -jar copybara.jar migrate copy.bara.sky
+
+# 16GB+ for very large repos (200k+ files)
+java -Xmx16g -jar copybara.jar migrate copy.bara.sky
+```
+
+### Signs You Need More Memory
+
+- `OutOfMemoryError: Java heap space`
+- Process killed by OOM killer (check `dmesg`)
+- Unexplained slowdowns during transformation phase
+
+<Aside type="tip">
+  Monitor memory with: `java -Xmx8g -XX:+PrintGCDetails -jar copybara.jar ...`
+</Aside>
+
+## Glob Optimization
+
+File matching is often the biggest performance factor.
+
+### Use Specific Patterns
+
+```starlark
+# SLOW: Scans everything, then filters
+origin_files = glob(
+    include = ["**"],
+    exclude = ["vendor/**", "node_modules/**", "*.generated.*"],
+)
+
+# FAST: Only scans needed directories
+origin_files = glob(["src/**", "lib/**", "docs/**"])
+```
+
+### Understand Root Calculation
+
+Copybara calculates "roots" from glob patterns to determine which directories to query:
+
+| Pattern       | Root Queried      |
+| ------------- | ----------------- |
+| `src/**/*.py` | `src/`            |
+| `pkg/api/**`  | `pkg/api/`        |
+| `**/*.java`   | `/` (entire repo) |
+| `*.md`        | `/` (root only)   |
+
+Patterns starting with `**` force full repository traversal.
+
+### Exclude Heavy Directories
+
+Always exclude directories you don't need:
+
+```starlark
+origin_files = glob(
+    include = ["**"],
+    exclude = [
+        "node_modules/**",
+        "vendor/**",
+        ".git/**",
+        "build/**",
+        "dist/**",
+        "target/**",
+        "**/*.min.js",
+        "**/*.map",
+    ],
+)
+```
+
+## Git Configuration
+
+### Shallow Clones
+
+For CI environments, use shallow clones when you only need recent history:
+
+```bash
+# Clone with limited depth
+git clone --depth=100 https://github.com/org/repo
+
+# Then run Copybara with explicit last-rev
+java -jar copybara.jar migrate copy.bara.sky --last-rev HEAD~50
+```
+
+### Partial Clone (Sparse Checkout)
+
+For very large monorepos, use Git's partial clone:
+
+```bash
+# Clone without blobs initially
+git clone --filter=blob:none https://github.com/org/repo
+
+# Configure sparse checkout
+git sparse-checkout init --cone
+git sparse-checkout set src/component docs/
+```
+
+### Reference Repositories
+
+When running multiple Copybara workflows against the same origin, use reference repos:
+
+```bash
+# Create a shared reference
+git clone --bare https://github.com/org/repo /shared/repo.git
+
+# Copybara workflows reference it (reduces network I/O)
+git clone --reference /shared/repo.git https://github.com/org/repo
+```
+
+## Workflow Optimization
+
+### Limit History Processing
+
+Don't process entire history on every run:
+
+```bash
+# Only process last 100 commits
+java -jar copybara.jar migrate copy.bara.sky --last-rev HEAD~100
+
+# Start from specific known-good commit
+java -jar copybara.jar migrate copy.bara.sky --last-rev abc123def
+```
+
+### Use SQUASH Mode for Large Histories
+
+When importing many commits, SQUASH mode is faster than ITERATIVE:
+
+```starlark
+core.workflow(
+    name = "import",
+    mode = "SQUASH",  # Combines all changes into one commit
+    # ...
+)
+```
+
+ITERATIVE mode processes each commit separately, which is slower but preserves history.
+
+### Batch Transformations
+
+Group related transformations to minimize file I/O:
+
+```starlark
+# Less efficient: Multiple passes over files
+transformations = [
+    core.replace(before = "old1", after = "new1", paths = glob(["**/*.java"])),
+    core.replace(before = "old2", after = "new2", paths = glob(["**/*.java"])),
+    core.replace(before = "old3", after = "new3", paths = glob(["**/*.java"])),
+]
+
+# More efficient: Combined patterns where possible
+transformations = [
+    core.replace(
+        before = "com.old.package",
+        after = "com.new.package",
+        paths = glob(["**/*.java"]),
+        regex_groups = {"package": ".*"},
+    ),
+]
+```
+
+## CI/CD Optimization
+
+### Caching
+
+Cache the Copybara JAR and Git repos between runs:
+
+```yaml
+# GitHub Actions example
+- uses: actions/cache@v4
+  with:
+    path: |
+      ~/.copybara
+      ~/.m2/repository
+    key: copybara-${{ hashFiles('copy.bara.sky') }}
+```
+
+### Parallel Workflows
+
+Run independent workflows in parallel:
+
+```yaml
+jobs:
+  sync-component-a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: java -jar copybara.jar migrate copy.bara.sky component-a
+
+  sync-component-b:
+    runs-on: ubuntu-latest
+    steps:
+      - run: java -jar copybara.jar migrate copy.bara.sky component-b
+```
+
+### Incremental Triggers
+
+Only run Copybara when relevant files change:
+
+```yaml
+on:
+  push:
+    paths:
+      - "src/**"
+      - "docs/**"
+      - "copy.bara.sky"
+```
+
+## Monitoring & Debugging
+
+### Verbose Logging
+
+Enable detailed logging for performance analysis:
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky -v
+```
+
+### Timing Information
+
+The verbose output includes timing for each phase:
+
+- Git operations (clone, fetch, push)
+- File matching
+- Transformation execution
+- Commit creation
+
+### Profiling Large Runs
+
+For persistent performance issues, enable JVM profiling:
+
+```bash
+java -XX:+FlightRecorder \
+     -XX:StartFlightRecording=duration=300s,filename=copybara.jfr \
+     -jar copybara.jar migrate copy.bara.sky
+```
+
+Analyze with `jfr` command or Java Mission Control.
+
+## Scaling Patterns
+
+### Sharding Large Monorepos
+
+Split large repos into independent workflows:
+
+```starlark
+# workflow-frontend.bara.sky
+core.workflow(
+    name = "frontend",
+    origin_files = glob(["frontend/**"]),
+    # ...
+)
+
+# workflow-backend.bara.sky
+core.workflow(
+    name = "backend",
+    origin_files = glob(["backend/**"]),
+    # ...
+)
+```
+
+### Rate Limiting
+
+For high-frequency syncs, implement rate limiting:
+
+```bash
+# Only sync if last sync was > 5 minutes ago
+if [ $(find /tmp/last-sync -mmin -5 2>/dev/null) ]; then
+    echo "Skipping: synced recently"
+    exit 0
+fi
+touch /tmp/last-sync
+java -jar copybara.jar migrate copy.bara.sky
+```
+
+## Benchmarks
+
+Typical performance on modern hardware (8-core, 32GB RAM):
+
+| Repo Size  | Files    | First Sync | Incremental |
+| ---------- | -------- | ---------- | ----------- |
+| Small      | 1-1,000  | ~30s       | ~5s         |
+| Medium     | 1k-10k   | ~2m        | ~15s        |
+| Large      | 10k-100k | ~10m       | ~1m         |
+| Very Large | 100k+    | ~30m+      | ~5m         |
+
+<Aside type="note">
+  Times vary significantly based on transformation complexity, network speed,
+  and Git server performance.
+</Aside>
+
+## Next Steps
+
+- [Glob reference](/reference/glob/) - Pattern optimization
+- [Debugging guide](/troubleshooting/debugging/) - Troubleshooting slow runs
+- [CI/CD integration](/cicd/github-actions/) - Automation patterns

@@ -74,6 +74,7 @@ export default defineConfig({
 						{ label: 'Hello World', slug: 'guides/hello-world' },
 						{ label: 'Open Source a Project', slug: 'guides/open-source-project' },
 						{ label: 'Sync Docs via PR', slug: 'guides/sync-docs-via-pr' },
+						{ label: 'Performance & Scaling', slug: 'guides/performance' },
 						{
 							label: 'Unsupported Platforms',
 							collapsed: true,
@@ -165,6 +166,7 @@ export default defineConfig({
 						{ label: 'TOML Module', slug: 'reference/toml' },
 						{ label: 'Rust Module', slug: 'reference/rust' },
 						{ label: 'XML Module', slug: 'reference/xml' },
+						{ label: 'Utility Modules', slug: 'reference/utilities' },
 						{ label: 'Glob Reference', slug: 'reference/glob' },
 					],
 				},
