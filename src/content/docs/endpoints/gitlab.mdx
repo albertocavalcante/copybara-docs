@@ -1,0 +1,451 @@
+---
+title: GitLab Integration
+description: Working with GitLab repositories and Merge Requests
+---
+
+import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
+
+# GitLab Integration
+
+Copybara supports GitLab repositories for reading and writing code, including Merge Request workflows.
+
+<Aside type="caution" title="Experimental Feature">
+  GitLab Merge Request support (`git.gitlab_mr_origin` and
+  `git.gitlab_mr_destination`) is **experimental** and the API may change in
+  future versions. Use with caution in production workflows.
+</Aside>
+
+## Origins
+
+### git.gitlab_origin
+
+Read from a GitLab repository:
+
+```starlark
+origin = git.gitlab_origin(
+    url = "https://gitlab.com/org/project",
+    ref = "main",
+)
+```
+
+#### Parameters
+
+| Parameter             | Type            | Default  | Description                                  |
+| --------------------- | --------------- | -------- | -------------------------------------------- |
+| `url`                 | string          | required | GitLab repository URL                        |
+| `ref`                 | string          | `None`   | Default branch/tag to read from              |
+| `submodules`          | string          | `"NO"`   | Submodule handling: `NO`, `YES`, `RECURSIVE` |
+| `excluded_submodules` | list            | `[]`     | Submodule names to exclude                   |
+| `first_parent`        | bool            | `True`   | Only follow first parent in merge commits    |
+| `partial_fetch`       | bool            | `False`  | Only fetch files matching origin_files glob  |
+| `describe_version`    | bool            | `None`   | Run `git describe` on revisions              |
+| `version_selector`    | VersionSelector | `None`   | Custom version/tag selection                 |
+| `patch`               | transformation  | `None`   | Patch to apply on checkout                   |
+
+#### Example with Submodules
+
+```starlark
+origin = git.gitlab_origin(
+    url = "https://gitlab.com/org/project",
+    ref = "main",
+    submodules = "RECURSIVE",
+    excluded_submodules = ["large-assets"],
+    first_parent = True,
+)
+```
+
+### git.gitlab_mr_origin
+
+<Aside type="caution">
+  This is an **experimental** feature. The API may change without notice.
+</Aside>
+
+Read from GitLab Merge Requests:
+
+```starlark
+origin = git.gitlab_mr_origin(
+    url = "https://gitlab.com/org/project",
+    credentials = credentials.username_password(
+        credentials.static_value("username"),
+        credentials.static_secret("gitlab_token", "GITLAB_TOKEN"),
+    ),
+)
+```
+
+#### Parameters
+
+| Parameter             | Type                   | Default  | Description                                  |
+| --------------------- | ---------------------- | -------- | -------------------------------------------- |
+| `url`                 | string                 | required | GitLab repository URL                        |
+| `credentials`         | UsernamePasswordIssuer | `None`   | Authentication credentials                   |
+| `use_merge_commit`    | bool                   | `False`  | Use GitLab's merge commit instead of MR head |
+| `partial_fetch`       | bool                   | `False`  | Only fetch files matching origin_files glob  |
+| `describe_version`    | bool                   | `True`   | Run `git describe` on revisions              |
+| `first_parent`        | bool                   | `True`   | Only follow first parent in merge commits    |
+| `submodules`          | string                 | `"NO"`   | Submodule handling: `NO`, `YES`, `RECURSIVE` |
+| `excluded_submodules` | list                   | `[]`     | Submodule names to exclude                   |
+| `patch`               | transformation         | `None`   | Patch to apply on checkout                   |
+
+#### Running with MR Origin
+
+Pass the Merge Request number as the source reference:
+
+```bash
+copybara migrate copy.bara.sky import_mr 123
+```
+
+Where `123` is the MR number (IID) in GitLab.
+
+#### Labels Available
+
+When using `git.gitlab_mr_origin`, the following labels are available for use in transformations:
+
+| Label                    | Description                           |
+| ------------------------ | ------------------------------------- |
+| `GITLAB_MR_TITLE`        | Title of the Merge Request            |
+| `GITLAB_MR_URL`          | Web URL of the Merge Request          |
+| `GITLAB_MR_DESCRIPTION`  | Description/body of the Merge Request |
+| `GITLAB_BASE_BRANCH_REF` | Reference to the base branch          |
+
+#### Example: Using MR Labels
+
+```starlark
+core.workflow(
+    name = "import_mr",
+    origin = git.gitlab_mr_origin(
+        url = "https://gitlab.com/org/project",
+        credentials = credentials.username_password(
+            credentials.static_value("oauth2"),
+            credentials.static_secret("gitlab_token", "GITLAB_TOKEN"),
+        ),
+        use_merge_commit = False,
+    ),
+    destination = git.destination(
+        url = "https://internal.example.com/repo",
+        push = "imported-mrs",
+    ),
+    authoring = authoring.pass_thru("Bot <bot@example.com>"),
+    transformations = [
+        # Use MR metadata in commit message
+        metadata.replace_message(
+            "Import MR: ${GITLAB_MR_TITLE}\n\n" +
+            "Source: ${GITLAB_MR_URL}\n\n" +
+            "${GITLAB_MR_DESCRIPTION}"
+        ),
+    ],
+    mode = "CHANGE_REQUEST",
+)
+```
+
+#### Use Merge Commit vs MR Head
+
+GitLab generates a merge commit for each MR showing the result of merging the MR into the target branch:
+
+- **`use_merge_commit = False`** (default): Use the MR head commit (the actual changes)
+- **`use_merge_commit = True`**: Use GitLab's generated merge commit (includes target branch state)
+
+```starlark
+# Use the actual MR changes
+origin = git.gitlab_mr_origin(
+    url = "https://gitlab.com/org/project",
+    credentials = my_credentials,
+    use_merge_commit = False,  # Default
+)
+
+# Use GitLab's merge result (includes target branch)
+origin = git.gitlab_mr_origin(
+    url = "https://gitlab.com/org/project",
+    credentials = my_credentials,
+    use_merge_commit = True,
+)
+```
+
+<Aside type="tip">
+  Use `use_merge_commit = True` if you want to test what the merged result would
+  look like, accounting for any changes in the target branch since the MR was
+  created.
+</Aside>
+
+---
+
+## Destinations
+
+### git.gitlab_mr_destination
+
+<Aside type="caution">
+  This is an **experimental** feature. The API may change without notice.
+</Aside>
+
+Create or update GitLab Merge Requests:
+
+```starlark
+destination = git.gitlab_mr_destination(
+    url = "https://gitlab.com/org/project",
+    credentials = credentials.username_password(
+        credentials.static_value("oauth2"),
+        credentials.static_secret("gitlab_token", "GITLAB_TOKEN"),
+    ),
+    target_branch = "main",
+)
+```
+
+#### Parameters
+
+| Parameter                         | Type                   | Default  | Description                                    |
+| --------------------------------- | ---------------------- | -------- | ---------------------------------------------- |
+| `url`                             | string                 | required | GitLab repository URL                          |
+| `credentials`                     | UsernamePasswordIssuer | required | Authentication credentials                     |
+| `target_branch`                   | string                 | required | Target branch for the MR                       |
+| `source_branch`                   | string                 | `None`   | Source branch name (auto-generated if not set) |
+| `title`                           | string                 | `None`   | MR title template (supports labels)            |
+| `body`                            | string                 | `None`   | MR description template (supports labels)      |
+| `assignees`                       | list                   | `[]`     | GitLab usernames to assign                     |
+| `allow_empty_diff`                | bool                   | `False`  | Allow pushing even if no changes               |
+| `allow_empty_diff_merge_statuses` | list                   | `[]`     | Merge statuses that allow empty diff           |
+| `partial_fetch`                   | bool                   | `False`  | Use partial fetch for baseline                 |
+
+#### Full Configuration Example
+
+```starlark
+destination = git.gitlab_mr_destination(
+    url = "https://gitlab.com/org/project",
+    credentials = credentials.username_password(
+        credentials.static_value("oauth2"),
+        credentials.static_secret("gitlab_token", "GITLAB_TOKEN"),
+    ),
+    target_branch = "main",
+    source_branch = "copybara/sync-${CONTEXT_REFERENCE}",
+    title = "Sync from internal: ${CONTEXT_REFERENCE}",
+    body = """\
+## Automated Sync
+
+This MR was automatically created by Copybara.
+
+### Source Reference
+${CONTEXT_REFERENCE}
+
+### Review Checklist
+- [ ] Review changes
+- [ ] Run CI pipeline
+- [ ] Approve and merge
+""",
+    assignees = ["maintainer1", "maintainer2"],
+    allow_empty_diff = False,
+)
+```
+
+#### Template Variables
+
+Available in `title`, `body`, and `source_branch` templates:
+
+| Variable               | Description                                |
+| ---------------------- | ------------------------------------------ |
+| `${CONTEXT_REFERENCE}` | Source commit reference (short SHA or ref) |
+
+---
+
+## Authentication
+
+GitLab integration requires authentication using a Personal Access Token or Project Access Token.
+
+### Creating a Token
+
+<Tabs>
+<TabItem label="Personal Access Token">
+
+1. Go to GitLab → User Settings → Access Tokens
+2. Create a new token with scopes:
+   - `api` - Full API access
+   - `read_repository` - Read repository
+   - `write_repository` - Write repository
+3. Copy the token value
+
+</TabItem>
+<TabItem label="Project Access Token">
+
+1. Go to Project → Settings → Access Tokens
+2. Create a new token with scopes:
+   - `api` - Full API access
+   - `read_repository` - Read repository
+   - `write_repository` - Write repository
+3. Select a role: `Maintainer` or higher
+4. Copy the token value
+
+</TabItem>
+</Tabs>
+
+### Using Credentials in Config
+
+GitLab uses bearer token authentication. Configure credentials using `credentials.username_password`:
+
+```starlark
+# The username can be anything for token auth (commonly "oauth2" or "gitlab-ci-token")
+# The password is your GitLab token
+
+my_credentials = credentials.username_password(
+    credentials.static_value("oauth2"),
+    credentials.static_secret("gitlab_token", "GITLAB_TOKEN"),
+)
+```
+
+<Aside type="note">
+  For GitLab token authentication, the username is typically set to `oauth2` or
+  any placeholder value. The actual authentication uses the token as a bearer
+  token.
+</Aside>
+
+### Environment Setup
+
+```bash
+# Set the token in environment
+export GITLAB_TOKEN="glpat-xxxxxxxxxxxxxxxxxxxx"
+
+# Run Copybara
+copybara migrate copy.bara.sky workflow_name
+```
+
+### CI/CD Integration
+
+In GitLab CI:
+
+```yaml
+sync:
+  script:
+    - copybara migrate copy.bara.sky export
+  variables:
+    GITLAB_TOKEN: $CI_JOB_TOKEN # Or use a project variable
+```
+
+In GitHub Actions (syncing TO GitLab):
+
+```yaml
+- name: Run Copybara
+  env:
+    GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+  run: java -jar copybara.jar migrate copy.bara.sky export
+```
+
+---
+
+## Complete Workflow Examples
+
+### Export to GitLab
+
+Push changes to a GitLab repository:
+
+```starlark
+core.workflow(
+    name = "export",
+    origin = git.origin(
+        url = "https://internal.example.com/repo",
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = "https://gitlab.com/org/project",
+        push = "main",
+    ),
+    authoring = authoring.pass_thru("Bot <bot@example.com>"),
+    origin_files = glob(["src/**"]),
+    mode = "SQUASH",
+)
+```
+
+### Export via Merge Request
+
+Create MRs for review before merging:
+
+```starlark
+core.workflow(
+    name = "export_mr",
+    origin = git.origin(
+        url = "https://internal.example.com/repo",
+        ref = "main",
+    ),
+    destination = git.gitlab_mr_destination(
+        url = "https://gitlab.com/org/project",
+        credentials = credentials.username_password(
+            credentials.static_value("oauth2"),
+            credentials.static_secret("gitlab_token", "GITLAB_TOKEN"),
+        ),
+        target_branch = "main",
+        title = "Sync from internal",
+    ),
+    authoring = authoring.pass_thru("Bot <bot@example.com>"),
+    origin_files = glob(["src/**"]),
+    mode = "CHANGE_REQUEST",
+)
+```
+
+### Import Merge Requests
+
+Import external MRs to internal systems:
+
+```starlark
+core.workflow(
+    name = "import_mr",
+    origin = git.gitlab_mr_origin(
+        url = "https://gitlab.com/org/project",
+        credentials = credentials.username_password(
+            credentials.static_value("oauth2"),
+            credentials.static_secret("gitlab_token", "GITLAB_TOKEN"),
+        ),
+    ),
+    destination = git.gerrit_destination(
+        url = "https://gerrit.internal.com/repo",
+        push_to_refs_for = "main",
+    ),
+    authoring = authoring.allowed(
+        default = "External Contributor <external@example.com>",
+        allowlist = ["*@company.com"],
+    ),
+    transformations = [
+        metadata.replace_message(
+            "Import from GitLab MR\n\n" +
+            "Original: ${GITLAB_MR_URL}\n" +
+            "Title: ${GITLAB_MR_TITLE}"
+        ),
+    ],
+    mode = "CHANGE_REQUEST_FROM_SOT",
+)
+```
+
+---
+
+## Limitations
+
+Current limitations of GitLab integration:
+
+| Feature                   | Status              |
+| ------------------------- | ------------------- |
+| Basic Git operations      | Supported           |
+| Merge Request origin      | Experimental        |
+| Merge Request destination | Experimental        |
+| Feedback endpoint         | Not yet implemented |
+| MR approval requirements  | Not yet supported   |
+| MR labels/milestones      | Not yet supported   |
+
+<Aside type="note">
+  Feedback workflows (e.g., posting comments, updating MR status) are not yet
+  implemented for GitLab. This is tracked in the Copybara issue tracker.
+</Aside>
+
+---
+
+## Comparison: GitLab vs GitHub
+
+| Feature           | GitHub                      | GitLab                      |
+| ----------------- | --------------------------- | --------------------------- |
+| Origin            | `git.github_origin`         | `git.gitlab_origin`         |
+| PR/MR Origin      | `git.github_pr_origin`      | `git.gitlab_mr_origin`      |
+| PR/MR Destination | `git.github_pr_destination` | `git.gitlab_mr_destination` |
+| API Endpoint      | `git.github_api`            | Not available               |
+| Event Trigger     | `git.github_trigger`        | Not available               |
+| Status            | Stable                      | Experimental                |
+
+---
+
+## Next Steps
+
+- [GitHub Integration](/endpoints/github/) - Compare with GitHub workflows
+- [Gerrit Integration](/endpoints/gerrit/) - Alternative code review system
+- [Authentication guide](/cicd/authentication/) - More authentication options

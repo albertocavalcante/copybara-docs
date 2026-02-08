@@ -93,6 +93,7 @@ export default defineConfig({
 						{ label: 'Git Origins', slug: 'endpoints/git-origins' },
 						{ label: 'Git Destinations', slug: 'endpoints/git-destinations' },
 						{ label: 'GitHub Integration', slug: 'endpoints/github' },
+						{ label: 'GitLab Integration', slug: 'endpoints/gitlab' },
 						{ label: 'Gerrit Integration', slug: 'endpoints/gerrit' },
 						{ label: 'Folder Origin/Destination', slug: 'endpoints/folder' },
 					],
