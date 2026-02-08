@@ -150,6 +150,7 @@ export default defineConfig({
 					{ label: 'Format Module', slug: 'reference/format' },
 					{ label: 'Go Module', slug: 'reference/go' },
 					{ label: 'TOML Module', slug: 'reference/toml' },
+					{ label: 'Rust Module', slug: 'reference/rust' },
 						{ label: 'Glob Reference', slug: 'reference/glob' },
 					],
 				},

@@ -1,0 +1,260 @@
+---
+title: Rust Module Reference
+description: Reference for rust.* functions for crates.io integration
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+# Rust Module Reference
+
+The `rust` module provides functions for importing Rust crates from crates.io. This enables Copybara to sync Rust packages with version resolution and Cargo version requirement handling.
+
+<Aside type="caution" title="Experimental Feature">
+  The Rust module functions are currently undocumented in the upstream Copybara
+  project, indicating they may change without notice. Use with caution in
+  production workflows.
+</Aside>
+
+## rust.crates_io_version_list
+
+Create a version list from crates.io for a Rust crate:
+
+```starlark
+version_list = rust.crates_io_version_list(
+    crate = "libc",
+    match_pre_release_versions = False,
+    ignore_yanked_versions = True,
+    auth = None,
+)
+```
+
+### Parameters
+
+| Parameter                    | Type            | Default  | Description                                    |
+| ---------------------------- | --------------- | -------- | ---------------------------------------------- |
+| `crate`                      | string          | required | The crate name (e.g., `"libc"`, `"serde"`)     |
+| `match_pre_release_versions` | bool            | `False`  | Include pre-release versions (alpha, beta, rc) |
+| `ignore_yanked_versions`     | bool            | `True`   | Exclude yanked (retracted) versions            |
+| `auth`                       | AuthInterceptor | `None`   | Authentication for private registries          |
+
+### Example
+
+```starlark
+# Get all stable versions of the libc crate
+version_list = rust.crates_io_version_list(
+    crate = "libc",
+)
+
+# Include pre-release versions
+version_list = rust.crates_io_version_list(
+    crate = "tokio",
+    match_pre_release_versions = True,
+)
+```
+
+---
+
+## rust.crates_io_version_resolver
+
+Create a version resolver for CLI-passed refs:
+
+```starlark
+resolver = rust.crates_io_version_resolver(
+    crate = "serde",
+    match_pre_release_versions = False,
+    auth = None,
+)
+```
+
+### Parameters
+
+| Parameter                    | Type            | Default  | Description                                 |
+| ---------------------------- | --------------- | -------- | ------------------------------------------- |
+| `crate`                      | string          | required | The crate name                              |
+| `match_pre_release_versions` | bool            | `False`  | Include pre-release versions when resolving |
+| `auth`                       | AuthInterceptor | `None`   | Authentication for private registries       |
+
+---
+
+## rust.crates_io_version_selector
+
+Create a version selector based on Cargo version requirements:
+
+```starlark
+selector = rust.crates_io_version_selector(
+    requirement = "1.2",
+    allow_epochs = False,
+)
+```
+
+### Parameters
+
+| Parameter      | Type   | Default  | Description                                 |
+| -------------- | ------ | -------- | ------------------------------------------- |
+| `requirement`  | string | required | Cargo version requirement (e.g., `">=1.0"`) |
+| `allow_epochs` | bool   | `False`  | Allow epoch version requirements            |
+
+This selector uses [Cargo's version requirement syntax](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html):
+
+| Requirement | Matches                      | Example              |
+| ----------- | ---------------------------- | -------------------- |
+| `1.2`       | `>=1.2.0, <2.0.0`            | 1.2.0, 1.2.3, 1.9.0  |
+| `^1.2.3`    | `>=1.2.3, <2.0.0` (caret)    | 1.2.3, 1.2.4, 1.5.0  |
+| `~1.2.3`    | `>=1.2.3, <1.3.0` (tilde)    | 1.2.3, 1.2.9         |
+| `>=1.0`     | `>=1.0.0`                    | 1.0.0, 2.0.0, 10.0.0 |
+| `<2.0`      | `<2.0.0`                     | 0.1.0, 1.9.9         |
+| `1.2.*`     | `>=1.2.0, <1.3.0` (wildcard) | 1.2.0, 1.2.5         |
+
+---
+
+## rust.create_version_requirement
+
+Create a version requirement object for comparing versions:
+
+```starlark
+req = rust.create_version_requirement(
+    requirement = ">= 0.5",
+    allow_epochs = False,
+)
+
+# Check if a version fulfills the requirement
+if req.fulfills("0.5.3"):
+    # Version matches
+    pass
+```
+
+### Parameters
+
+| Parameter      | Type   | Default  | Description                      |
+| -------------- | ------ | -------- | -------------------------------- |
+| `requirement`  | string | required | Cargo version requirement string |
+| `allow_epochs` | bool   | `False`  | Allow epoch version requirements |
+
+### Methods
+
+| Method          | Returns | Description                                 |
+| --------------- | ------- | ------------------------------------------- |
+| `fulfills(ver)` | bool    | Check if a version string meets requirement |
+
+---
+
+## Examples
+
+### Sync Crate from crates.io
+
+Sync a Rust crate using `remotefiles.origin`:
+
+```starlark
+core.workflow(
+    name = "sync_rust_crate",
+    origin = remotefiles.origin(
+        archive_source = "https://crates.io/api/v1/crates/libc/${VERSION}/download",
+        unpack_method = "TAR_GZ",
+        version_list = rust.crates_io_version_list(
+            crate = "libc",
+        ),
+        origin_version_selector = core.latest_version(),
+    ),
+    destination = git.destination(
+        url = "https://github.com/internal/libc-vendor",
+        push = "main",
+    ),
+    authoring = authoring.overwrite("Rust Sync Bot <rust-sync@example.com>"),
+    transformations = [
+        # crates.io tarballs contain a versioned directory
+        core.move("libc-${VERSION}/", ""),
+    ],
+)
+```
+
+### Sync with Version Requirement
+
+Sync only versions matching a Cargo requirement:
+
+```starlark
+core.workflow(
+    name = "sync_serde",
+    origin = remotefiles.origin(
+        archive_source = "https://crates.io/api/v1/crates/serde/${VERSION}/download",
+        unpack_method = "TAR_GZ",
+        version_list = rust.crates_io_version_list(
+            crate = "serde",
+        ),
+        origin_version_selector = rust.crates_io_version_selector(
+            requirement = "1.0",  # Only 1.x versions
+        ),
+    ),
+    destination = git.destination(...),
+    authoring = authoring.overwrite("Bot <bot@example.com>"),
+)
+```
+
+### Include Pre-release Versions
+
+Sync including alpha, beta, and rc versions:
+
+```starlark
+version_list = rust.crates_io_version_list(
+    crate = "tokio",
+    match_pre_release_versions = True,
+    ignore_yanked_versions = True,
+)
+```
+
+### Dynamic Version Checking
+
+Check version requirements in a transformation:
+
+```starlark
+def _check_dependency_versions(ctx):
+    content = ctx.read_path(ctx.path("Cargo.toml"))
+    cargo = toml.parse(content = content)
+
+    # Get the serde version from dependencies
+    serde_ver = cargo.get("dependencies.serde")
+
+    # Check against our minimum requirement
+    req = rust.create_version_requirement(requirement = ">= 1.0.150")
+    if req.fulfills(serde_ver):
+        ctx.console.info("serde version " + serde_ver + " meets requirements")
+    else:
+        return ctx.error("serde version " + serde_ver + " too old")
+
+    return ctx.success()
+
+core.dynamic_transform(impl = _check_dependency_versions)
+```
+
+---
+
+## crates.io Tarball Structure
+
+When downloading from crates.io, the tarball contains:
+
+```
+cratename-version/
+├── Cargo.toml
+├── Cargo.toml.orig
+├── src/
+│   └── lib.rs
+├── .cargo_vcs_info.json
+└── ...
+```
+
+The `.cargo_vcs_info.json` file contains the Git commit hash and repository URL from when the crate was published.
+
+Use `core.move()` to flatten the directory structure:
+
+```starlark
+transformations = [
+    core.move("serde-1.0.193/", ""),
+]
+```
+
+---
+
+## Next Steps
+
+- [Remote Files Module](/reference/remotefiles/) - Using Rust crates with remotefiles.origin
+- [TOML Module](/reference/toml/) - Parsing Cargo.toml files
+- [HTTP Module](/reference/http/) - Authentication for private registries
