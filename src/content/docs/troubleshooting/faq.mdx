@@ -80,28 +80,45 @@ From [Issue #125](https://github.com/google/copybara/issues/125) and [Issue #142
 
 ### Can I split configuration across multiple files?
 
-**Not directly.** Copybara expects a single `copy.bara.sky` file.
+**Yes!** Use Starlark's `load()` statement to import from other `.bara.sky` files.
 
-From [Issue #268](https://github.com/google/copybara/issues/268):
+From [Issue #268](https://github.com/google/copybara/issues/268), a Copybara collaborator confirmed:
 
-> A user asked if there's a way to list replacement rules in multiple sky files and invoke those files from the main copy.bara.sky file.
+> "Yes, starlark has a `load` statement to include other files. You will want to write a function that returns a list of transforms."
 
-**Workaround:** Define reusable functions within the same file:
+**Example:**
 
-```starlark
+```starlark title="common.bara.sky"
+# Define reusable replacements
+replacements = {
+    "old_name": "new_name",
+    "old_import": "new_import",
+}
+
 def common_transforms():
     return [
-        core.replace(before = "old", after = "new"),
-        # ... more transforms
+        core.replace(before = k, after = v)
+        for k, v in replacements.items()
     ]
+```
+
+```starlark title="copy.bara.sky"
+load("common", "common_transforms")
 
 core.workflow(
-    name = "workflow-a",
+    name = "default",
     transformations = common_transforms() + [
         # workflow-specific transforms
     ],
+    # ...
 )
 ```
+
+This pattern is useful for:
+
+- Organizing transforms per directory/module
+- Sharing common replacements across workflows
+- Keeping the main config file clean
 
 ### Why does my config file need to be named copy.bara.sky?
 
