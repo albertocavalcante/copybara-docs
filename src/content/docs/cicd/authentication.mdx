@@ -22,29 +22,37 @@ Copybara needs authentication to read from origins and write to destinations.
 <Tabs>
 <TabItem label="Setup">
 
-1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
+1. Go to GitHub **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**
 2. Click "Generate new token (classic)"
 3. Select scopes:
    - `repo` (full repository access)
    - `workflow` (if modifying workflows)
 4. Generate and copy the token
 
+See [GitHub's token documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) for details.
+
 </TabItem>
 <TabItem label="Usage">
 
+Configure Git to use your token via the credential helper:
+
 ```bash
-# Configure Git credentials
+# Enable credential storage
 git config --global credential.helper store
-echo "https://x-access-token:${TOKEN}@github.com" > ~/.git-credentials
+
+# Git will prompt for credentials on first use
+# Username: x-access-token
+# Password: <your-token>
 ```
 
-In GitHub Actions:
+In GitHub Actions, use the built-in `GITHUB_TOKEN` or configure credentials via environment:
 
 ```yaml
 - name: Configure Git
+  env:
+    GH_TOKEN: ${{ secrets.PAT }}
   run: |
-    git config --global credential.helper store
-    echo "https://x-access-token:${{ secrets.PAT }}@github.com" > ~/.git-credentials
+    git config --global credential.helper '!f() { echo "username=x-access-token"; echo "password=${GH_TOKEN}"; }; f'
 ```
 
 </TabItem>
@@ -52,12 +60,12 @@ In GitHub Actions:
 
 ## Fine-Grained Token (Recommended)
 
-More secure than classic tokens:
+More secure than classic tokens with repository-scoped access:
 
 <Tabs>
 <TabItem label="Setup">
 
-1. Go to GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens
+1. Go to GitHub **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens**
 2. Click "Generate new token"
 3. Set expiration
 4. Select repository access: "Only select repositories"
@@ -70,11 +78,11 @@ More secure than classic tokens:
 </TabItem>
 <TabItem label="Usage">
 
-Same as classic token:
+Same credential helper approach as classic tokens:
 
 ```bash
 git config --global credential.helper store
-echo "https://x-access-token:${FINE_GRAINED_TOKEN}@github.com" > ~/.git-credentials
+# Git prompts for credentials on first authenticated operation
 ```
 
 </TabItem>
@@ -87,7 +95,7 @@ echo "https://x-access-token:${FINE_GRAINED_TOKEN}@github.com" > ~/.git-credenti
 
 ## SSH Key
 
-Traditional Git authentication:
+Traditional Git authentication using SSH:
 
 <Tabs>
 <TabItem label="Setup">
@@ -95,21 +103,24 @@ Traditional Git authentication:
 1. Generate SSH key:
 
    ```bash
-   ssh-keygen -t ed25519 -C "copybara@example.com"
+   ssh-keygen -t ed25519 -C "copybara@example.com" -f ~/.ssh/copybara_key
    ```
 
 2. Add public key to GitHub:
-   - Settings → SSH and GPG keys → New SSH key
-   - Or repository Settings → Deploy keys (for single repo)
+   - **Settings** → **SSH and GPG keys** → **New SSH key**
+   - Or repository **Settings** → **Deploy keys** (for single repo)
+
+See [GitHub's SSH documentation](https://docs.github.com/en/authentication/connecting-to-github-with-ssh) for complete setup.
 
 </TabItem>
 <TabItem label="Usage">
 
 ```bash
-# Add private key to agent
-ssh-add ~/.ssh/id_ed25519
+# Add key to SSH agent
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/copybara_key
 
-# Or specify key file
+# Or specify key file directly
 GIT_SSH_COMMAND="ssh -i ~/.ssh/copybara_key" java -jar copybara.jar ...
 ```
 
@@ -117,11 +128,9 @@ In GitHub Actions:
 
 ```yaml
 - name: Configure SSH
-  run: |
-    mkdir -p ~/.ssh
-    echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-    chmod 600 ~/.ssh/id_ed25519
-    ssh-keyscan github.com >> ~/.ssh/known_hosts
+  uses: webfactory/ssh-agent@v0.9.0
+  with:
+    ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 ```
 
 </TabItem>
@@ -146,26 +155,22 @@ SSH key scoped to a single repository:
 1. Generate SSH key:
 
    ```bash
-   ssh-keygen -t ed25519 -C "copybara-deploy" -f copybara_deploy
+   ssh-keygen -t ed25519 -C "copybara-deploy" -f ~/.ssh/deploy_key
    ```
 
 2. Add to repository:
-   - Repository Settings → Deploy keys
-   - Add deploy key
+   - Repository **Settings** → **Deploy keys**
+   - Add deploy key (paste the `.pub` file contents)
    - Enable "Allow write access"
 
 </TabItem>
 <TabItem label="Usage">
 
-Same as SSH key:
-
 ```yaml
 - name: Configure Deploy Key
-  run: |
-    mkdir -p ~/.ssh
-    echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_ed25519
-    chmod 600 ~/.ssh/id_ed25519
-    ssh-keyscan github.com >> ~/.ssh/known_hosts
+  uses: webfactory/ssh-agent@v0.9.0
+  with:
+    ssh-private-key: ${{ secrets.DEPLOY_KEY }}
 ```
 
 </TabItem>
@@ -185,7 +190,7 @@ Best for enterprise and multi-repo automation:
 
 1. Create GitHub App:
 
-   - Organization Settings → Developer settings → GitHub Apps
+   - Organization **Settings** → **Developer settings** → **GitHub Apps**
    - New GitHub App
    - Set permissions:
      - Contents: Read and write
@@ -194,6 +199,8 @@ Best for enterprise and multi-repo automation:
    - Install on required repositories
 
 2. Note the App ID and generate a private key
+
+See [GitHub Apps documentation](https://docs.github.com/en/apps/creating-github-apps) for complete setup.
 
 </TabItem>
 <TabItem label="Usage">
@@ -208,80 +215,81 @@ Best for enterprise and multi-repo automation:
     repositories: destination-repo
 
 - name: Configure Git
+  env:
+    GH_TOKEN: ${{ steps.app-token.outputs.token }}
   run: |
-    git config --global credential.helper store
-    echo "https://x-access-token:${{ steps.app-token.outputs.token }}@github.com" > ~/.git-credentials
+    git config --global credential.helper '!f() { echo "username=x-access-token"; echo "password=${GH_TOKEN}"; }; f'
 ```
 
 </TabItem>
 </Tabs>
 
+## GitLab Authentication
+
+For GitLab repositories, create a personal access token:
+
+1. Go to **User Settings** → **Access Tokens**
+2. Create token with scopes: `read_repository`, `write_repository`
+3. Use `oauth2` as username with your token as password
+
+See [GitLab token documentation](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html).
+
 ## Gerrit Authentication
 
-For Gerrit destinations:
+For Gerrit destinations, generate an HTTP password:
 
-```bash
-# HTTP password
-git config --global credential.helper store
-echo "https://username:http-password@gerrit.example.com" > ~/.git-credentials
-```
-
-Generate HTTP password in Gerrit: Settings → HTTP Credentials
-
-## Multi-Repository Access
-
-For workflows accessing multiple repositories:
-
-```yaml
-# Use a PAT with access to all repos
-- name: Configure Git
-  run: |
-    echo "https://x-access-token:${{ secrets.MULTI_REPO_PAT }}@github.com" > ~/.git-credentials
-```
-
-Or use separate credentials:
-
-```yaml
-- name: Configure credentials
-  run: |
-    cat > ~/.git-credentials << 'EOF'
-    https://x-access-token:${{ secrets.ORIGIN_TOKEN }}@github.com
-    https://x-access-token:${{ secrets.DEST_TOKEN }}@github.com
-    EOF
-```
+1. Go to Gerrit **Settings** → **HTTP Credentials**
+2. Generate new password
+3. Configure Git credential helper with your username and HTTP password
 
 ## Security Best Practices
 
 1. **Use fine-grained tokens** when possible
 2. **Limit scope** to only required repositories
-3. **Set expiration** on tokens
+3. **Set expiration** on tokens (30-90 days recommended)
 4. **Rotate regularly** (especially after team changes)
-5. **Use secrets** in CI/CD (never hardcode)
-6. **Audit access** periodically
+5. **Use CI/CD secrets** - never commit credentials to repositories
+6. **Audit access** periodically via GitHub/GitLab audit logs
+7. **Use GitHub Apps** for production automation
+
+<Aside type="caution">
+  Never commit tokens or credentials to your repository. Always use CI/CD secret
+  management (GitHub Secrets, GitLab CI Variables, etc.).
+</Aside>
 
 ## Troubleshooting
 
 ### "Authentication failed"
 
-```bash
-# Test credentials
-git ls-remote https://github.com/org/repo
+- Verify token hasn't expired
+- Check token has required scopes (`repo` for full access)
+- Test with: `git ls-remote <repository-url>`
+- For fine-grained tokens, verify the repository is selected
 
-# Check configured credentials
-cat ~/.git-credentials
-```
+### "Permission denied (publickey)"
 
-### "Permission denied"
-
-- Verify token has required scopes
-- Check repository access settings
-- For fine-grained tokens, verify repository is selected
+- Verify SSH key is added to ssh-agent: `ssh-add -l`
+- Test SSH connection: `ssh -T git@github.com`
+- Check key is added to GitHub/GitLab
 
 ### "Host key verification failed"
 
+Add the host to known hosts:
+
 ```bash
 ssh-keyscan github.com >> ~/.ssh/known_hosts
+ssh-keyscan gitlab.com >> ~/.ssh/known_hosts
 ```
+
+### Token Scope Reference
+
+| Operation             | Required GitHub Scope |
+| --------------------- | --------------------- |
+| Read public repo      | (none)                |
+| Read private repo     | `repo`                |
+| Push to repo          | `repo`                |
+| Create pull request   | `repo`                |
+| Modify GitHub Actions | `repo`, `workflow`    |
 
 ## Next Steps
 
