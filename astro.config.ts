@@ -147,6 +147,7 @@ export default defineConfig({
 						{ label: 'Authoring Module', slug: 'reference/authoring' },
 						{ label: 'Remote Files Module', slug: 'reference/remotefiles' },
 					{ label: 'HTTP Module', slug: 'reference/http' },
+					{ label: 'Format Module', slug: 'reference/format' },
 						{ label: 'Glob Reference', slug: 'reference/glob' },
 					],
 				},

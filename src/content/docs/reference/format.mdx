@@ -1,0 +1,266 @@
+---
+title: Format Module Reference
+description: Reference for format.* code formatting functions
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+# Format Module Reference
+
+The `format` module provides code formatting transformations. Currently, it supports formatting Bazel BUILD and `.bzl` files using Buildifier.
+
+## format.buildifier
+
+Format BUILD files and Starlark (`.bzl`) files using [Buildifier](https://github.com/bazelbuild/buildtools/tree/master/buildifier):
+
+```starlark
+format.buildifier(
+    paths = glob(["**.bzl", "**/BUILD", "BUILD"]),
+    type = "auto",
+    lint = "OFF",
+    lint_warnings = [],
+)
+```
+
+### Parameters
+
+| Parameter       | Type   | Default                                 | Description                                           |
+| --------------- | ------ | --------------------------------------- | ----------------------------------------------------- |
+| `paths`         | Glob   | `glob(["**.bzl", "**/BUILD", "BUILD"])` | Files to format                                       |
+| `type`          | string | `"auto"`                                | File type: `auto`, `bzl`, `build`, `workspace`        |
+| `lint`          | string | `"OFF"`                                 | Lint mode: `OFF` or `FIX`                             |
+| `lint_warnings` | list   | `[]`                                    | Specific warnings to enable (requires `lint = "FIX"`) |
+
+### File Types
+
+| Type        | Description                             |
+| ----------- | --------------------------------------- |
+| `auto`      | Detect type from filename (recommended) |
+| `bzl`       | Format as `.bzl` Starlark file          |
+| `build`     | Format as BUILD file                    |
+| `workspace` | Format as WORKSPACE file                |
+
+<Aside type="note">
+  In `auto` mode, Buildifier treats `BUILD`, `BUILD.bazel`, `WORKSPACE`, and
+  `WORKSPACE.bazel` as BUILD-style files, and all other files (like `*.bzl`) as
+  Starlark files. Prefer using standard naming conventions rather than setting
+  `type` manually.
+</Aside>
+
+### Lint Modes
+
+| Mode  | Description                                              |
+| ----- | -------------------------------------------------------- |
+| `OFF` | Only format, no linting (default)                        |
+| `FIX` | Format and apply lint fixes (removes unused loads, etc.) |
+
+<Aside type="caution" title="Lint reversibility">
+  When `lint = "FIX"` is enabled, Buildifier may remove unused `load()`
+  statements or make other structural changes. These transformations can be
+  difficult to reverse automatically. For bidirectional workflows, consider
+  using `lint = "OFF"` or add explicit `core.replace` transformations for the
+  reverse direction.
+</Aside>
+
+---
+
+## Examples
+
+### Default Usage
+
+Format all BUILD and `.bzl` files with default settings:
+
+```starlark
+transformations = [
+    format.buildifier(),
+]
+```
+
+This matches:
+
+- All `*.bzl` files
+- All `BUILD` files (at any directory level)
+- The root `BUILD` file
+
+### Enable Lint Fixes
+
+Format and apply Buildifier lint fixes:
+
+```starlark
+transformations = [
+    format.buildifier(lint = "FIX"),
+]
+```
+
+Common fixes applied by `lint = "FIX"`:
+
+- Remove unused `load()` statements
+- Sort and deduplicate load statements
+- Fix common style issues
+
+### Specific File Patterns
+
+Format only specific directories:
+
+```starlark
+transformations = [
+    format.buildifier(
+        paths = glob(
+            include = ["foo/BUILD", "foo/**/BUILD"],
+            exclude = ["foo/bar/BUILD"],
+        ),
+    ),
+]
+```
+
+This formats all BUILD files inside `foo/` except for `foo/bar/BUILD`.
+
+### With Specific Lint Warnings
+
+Enable specific lint warnings:
+
+```starlark
+transformations = [
+    format.buildifier(
+        lint = "FIX",
+        lint_warnings = [
+            "attr-cfg",
+            "attr-license",
+            "attr-non-empty",
+            "attr-output-default",
+            "attr-single-file",
+            "constant-glob",
+            "ctx-actions",
+            "depset-iteration",
+            "depset-union",
+            "dict-concatenation",
+            "duplicated-name",
+            "filetype",
+            "git-repository",
+            "http-archive",
+            "integer-division",
+            "load",
+            "load-on-top",
+            "native-build",
+            "native-package",
+            "out-of-order-load",
+            "output-group",
+            "package-name",
+            "package-on-top",
+            "positional-args",
+            "redefined-variable",
+            "repository-name",
+            "same-origin-load",
+            "string-iteration",
+            "unused-variable",
+        ],
+    ),
+]
+```
+
+---
+
+## Complete Workflow Example
+
+### Open Sourcing with Formatting
+
+Format Bazel files as part of an open-sourcing workflow:
+
+```starlark
+core.workflow(
+    name = "export",
+    origin = git.origin(
+        url = "https://internal.example.com/repo",
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = "https://github.com/org/public-repo",
+        push = "main",
+    ),
+    origin_files = glob(["**"], exclude = ["**/internal/**"]),
+    authoring = authoring.pass_thru("Bot <bot@example.com>"),
+    transformations = [
+        # Remove internal paths
+        core.remove(glob(["**/internal/**"])),
+
+        # Format all Bazel files
+        format.buildifier(lint = "FIX"),
+
+        # Update internal references
+        core.replace(
+            before = "@internal//",
+            after = "@public//",
+            paths = glob(["**.bzl", "**/BUILD"]),
+        ),
+    ],
+)
+```
+
+### CI Formatting Check
+
+Use Buildifier in a validation-only context:
+
+```starlark
+core.workflow(
+    name = "format_check",
+    origin = git.origin(
+        url = "https://github.com/org/repo",
+        ref = "main",
+    ),
+    destination = folder.destination(),
+    authoring = authoring.overwrite("CI <ci@example.com>"),
+    transformations = [
+        format.buildifier(),
+    ],
+)
+```
+
+Run with `--dry-run` to check if files need formatting without modifying them.
+
+---
+
+## CLI Options
+
+Buildifier behavior can be configured via CLI flags:
+
+| Flag                      | Description                               |
+| ------------------------- | ----------------------------------------- |
+| `--buildifier-path`       | Path to buildifier binary                 |
+| `--buildifier-batch-size` | Files to process per batch (default: 100) |
+
+Example:
+
+```bash
+copybara migrate copy.bara.sky workflow \
+  --buildifier-path=/usr/local/bin/buildifier
+```
+
+---
+
+## Prerequisites
+
+Buildifier must be installed and accessible. Install it using:
+
+```bash
+# Using go
+go install github.com/bazelbuild/buildtools/buildifier@latest
+
+# Using Homebrew (macOS)
+brew install buildifier
+
+# Using apt (Debian/Ubuntu)
+apt install buildifier
+```
+
+<Aside type="tip">
+  If Buildifier is not in your `PATH`, use the `--buildifier-path` CLI flag to
+  specify its location.
+</Aside>
+
+---
+
+## Next Steps
+
+- [Transformations Overview](/transformations/overview/)
+- [Core Module Reference](/reference/core/)
+- [Text Replacement](/transformations/replace/)
