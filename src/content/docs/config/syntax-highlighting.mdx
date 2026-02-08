@@ -1,0 +1,131 @@
+---
+title: Syntax Highlighting
+description: Enable syntax highlighting for copy.bara.sky files on GitHub
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+GitHub doesn't recognize `.bara.sky` files by default, so they appear without syntax highlighting. Use `.gitattributes` to fix this.
+
+## The Problem
+
+When you view `copy.bara.sky` on GitHub, it appears as plain text:
+
+```text
+# No highlighting - hard to read
+core.workflow(
+    name = "default",
+    origin = git.origin(url = "..."),
+)
+```
+
+## The Solution
+
+Add a `.gitattributes` file to your repository root:
+
+```text title=".gitattributes"
+*.bara.sky linguist-language=Starlark
+```
+
+This tells GitHub's [Linguist](https://github.com/github-linguist/linguist) to treat `.bara.sky` files as Starlark, enabling Python-like syntax highlighting.
+
+## After Adding .gitattributes
+
+Your Copybara config now renders with proper highlighting:
+
+```starlark
+# Highlighted - much easier to read
+core.workflow(
+    name = "default",
+    origin = git.origin(url = "https://github.com/example/source"),
+    destination = git.destination(url = "https://github.com/example/dest"),
+    origin_files = glob(["src/**"]),
+    authoring = authoring.pass_thru("Bot <bot@example.com>"),
+)
+```
+
+## Important Notes
+
+<Aside type="caution">
+  The `.gitattributes` file must be **committed** to your repository. GitHub
+  won't apply the override until the file exists in the repo.
+</Aside>
+
+### Caching Behavior
+
+GitHub caches syntax highlighting per file blob. If highlighting doesn't appear immediately:
+
+1. Make a small change to the `.bara.sky` file
+2. Commit both files together
+3. The cache will refresh with the new blob
+
+### Other Useful Overrides
+
+You can add multiple rules to `.gitattributes`:
+
+```text title=".gitattributes"
+# Copybara configs
+*.bara.sky linguist-language=Starlark
+
+# Bazel files (if not auto-detected)
+BUILD linguist-language=Starlark
+*.bzl linguist-language=Starlark
+WORKSPACE linguist-language=Starlark
+
+# Mark generated files (excluded from stats)
+generated/** linguist-generated=true
+
+# Mark vendor files (excluded from stats)
+vendor/** linguist-vendored=true
+```
+
+## Editor Support
+
+### VS Code
+
+Install the [Starlark extension](https://marketplace.visualstudio.com/items?itemName=AliasLang.starlark) and add to your settings:
+
+```json title=".vscode/settings.json"
+{
+  "files.associations": {
+    "*.bara.sky": "starlark",
+    "copy.bara.sky": "starlark"
+  }
+}
+```
+
+### JetBrains IDEs
+
+The [Bazel plugin](https://plugins.jetbrains.com/plugin/8609-bazel) includes Starlark support. Associate the file pattern:
+
+1. Go to **Settings → Editor → File Types**
+2. Find **Starlark** or **Bazel BUILD**
+3. Add `*.bara.sky` pattern
+
+### Vim/Neovim
+
+Add to your config:
+
+```vim
+" .vimrc or init.vim
+autocmd BufRead,BufNewFile *.bara.sky set filetype=python
+```
+
+Or for proper Starlark support, use [vim-starlark](https://github.com/AliasLang/vim-starlark).
+
+### Emacs
+
+```elisp
+;; init.el
+(add-to-list 'auto-mode-alist '("\\.bara\\.sky\\'" . python-mode))
+```
+
+## Language Stats
+
+The `linguist-language` override also affects your repository's language statistics bar. If you have many `.bara.sky` files, they'll now count as Starlark instead of being unrecognized.
+
+## References
+
+- [GitHub Linguist Overrides](https://github.com/github-linguist/linguist/blob/main/docs/overrides.md)
+- [Starlark Language Spec](https://github.com/bazelbuild/starlark/blob/master/spec.md)
+- [Linguist languages.yml](https://github.com/github-linguist/linguist/blob/main/lib/linguist/languages.yml)

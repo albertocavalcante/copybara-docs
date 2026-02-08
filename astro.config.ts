@@ -129,6 +129,7 @@ export default defineConfig({
 						{ label: 'Glob Patterns', slug: 'config/glob-patterns' },
 						{ label: 'Authoring', slug: 'config/authoring' },
 						{ label: 'Labels & Markers', slug: 'config/labels' },
+						{ label: 'Syntax Highlighting', slug: 'config/syntax-highlighting' },
 					],
 				},
 				{
