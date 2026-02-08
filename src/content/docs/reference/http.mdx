@@ -1,0 +1,351 @@
+---
+title: HTTP Module Reference
+description: Reference for http.* functions
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+# HTTP Module Reference
+
+The `http` module provides functions for making HTTP requests, creating endpoints for feedback workflows, and handling authentication.
+
+## Authentication
+
+### http.bearer_auth
+
+Create a bearer token authentication interceptor:
+
+```starlark
+auth = http.bearer_auth(
+    creds = credentials.static_secret("token_name", "TOKEN_ENV_VAR"),
+)
+```
+
+#### Parameters
+
+| Parameter | Type             | Default  | Description          |
+| --------- | ---------------- | -------- | -------------------- |
+| `creds`   | CredentialIssuer | required | The token credential |
+
+#### Example
+
+```starlark
+# Bearer token authentication for API calls
+http.bearer_auth(
+    creds = credentials.static_secret("api_token", "API_TOKEN"),
+)
+```
+
+### http.username_password_auth
+
+Create a username/password authentication interceptor:
+
+```starlark
+auth = http.username_password_auth(
+    creds = credentials.username_password(
+        credentials.static_value("username"),
+        credentials.static_secret("password", "PASSWORD_ENV_VAR"),
+    ),
+)
+```
+
+#### Parameters
+
+| Parameter | Type                   | Default  | Description                       |
+| --------- | ---------------------- | -------- | --------------------------------- |
+| `creds`   | UsernamePasswordIssuer | required | The username/password credentials |
+
+---
+
+## HTTP Endpoints
+
+### http.endpoint
+
+Create an HTTP endpoint for making API requests in feedback workflows:
+
+```starlark
+endpoint = http.endpoint(
+    hosts = ["api.example.com"],
+)
+```
+
+#### Parameters
+
+| Parameter | Type    | Default | Description                                   |
+| --------- | ------- | ------- | --------------------------------------------- |
+| `hosts`   | list    | `[]`    | List of allowed hosts for HTTP traffic        |
+| `host`    | string  | `""`    | DEPRECATED. Use `hosts` instead               |
+| `checker` | Checker | `None`  | Checker to validate calls made by endpoint    |
+| `issuers` | dict    | `{}`    | Dictionary of credential issuers by host name |
+
+#### Example with Authentication
+
+```starlark
+http.endpoint(
+    hosts = [
+        http.host(
+            host = "api.github.com",
+            auth = http.bearer_auth(
+                creds = credentials.static_secret("github_token", "GITHUB_TOKEN"),
+            ),
+        ),
+        http.host(
+            host = "api.internal.com",
+            auth = http.username_password_auth(
+                creds = credentials.username_password(
+                    credentials.static_value("service_account"),
+                    credentials.static_secret("password", "SERVICE_PASSWORD"),
+                ),
+            ),
+        ),
+    ],
+)
+```
+
+### http.trigger
+
+Create an HTTP trigger for feedback workflows:
+
+```starlark
+trigger = http.trigger(
+    hosts = ["webhooks.example.com"],
+)
+```
+
+#### Parameters
+
+| Parameter | Type    | Default | Description                                |
+| --------- | ------- | ------- | ------------------------------------------ |
+| `hosts`   | list    | `[]`    | List of allowed hosts for HTTP traffic     |
+| `checker` | Checker | `None`  | Checker to validate calls made by endpoint |
+| `issuers` | dict    | `{}`    | Dictionary of credential issuers           |
+
+### http.host
+
+Wrap a host with optional authentication credentials:
+
+```starlark
+http.host(
+    host = "api.example.com",
+    auth = http.bearer_auth(...),
+)
+```
+
+#### Parameters
+
+| Parameter | Type            | Default | Description                       |
+| --------- | --------------- | ------- | --------------------------------- |
+| `host`    | string          | N/A     | The host to allow traffic to      |
+| `auth`    | AuthInterceptor | `None`  | Authentication interceptor to use |
+
+---
+
+## HTTP Body Content
+
+### http.json
+
+Create a JSON HTTP request body:
+
+```starlark
+body = http.json({
+    "key": "value",
+    "nested": {
+        "data": [1, 2, 3]
+    }
+})
+```
+
+#### Parameters
+
+| Parameter | Type   | Default | Description              |
+| --------- | ------ | ------- | ------------------------ |
+| `body`    | object | `{}`    | Object to serialize JSON |
+
+### http.urlencoded_form
+
+Create a URL-encoded form HTTP body:
+
+```starlark
+body = http.urlencoded_form({
+    "field1": "value1",
+    "field2": "value2",
+})
+```
+
+#### Parameters
+
+| Parameter | Type | Default | Description                   |
+| --------- | ---- | ------- | ----------------------------- |
+| `body`    | dict | `{}`    | Form fields as key-value dict |
+
+### http.multipart_form
+
+Create a multipart form HTTP body for file uploads:
+
+```starlark
+body = http.multipart_form(
+    parts = [
+        http.multipart_form_text("field_name", "text value"),
+        http.multipart_form_file("file_field", ctx.path("file.txt")),
+    ],
+)
+```
+
+#### Parameters
+
+| Parameter | Type | Default | Description                  |
+| --------- | ---- | ------- | ---------------------------- |
+| `parts`   | list | `[]`    | List of form parts to upload |
+
+### http.multipart_form_text
+
+Create a text part for multipart form:
+
+```starlark
+http.multipart_form_text("field_name", "text value")
+```
+
+#### Parameters
+
+| Parameter | Type   | Default | Description              |
+| --------- | ------ | ------- | ------------------------ |
+| `name`    | string | N/A     | Name of the form field   |
+| `text`    | string | N/A     | Text value for the field |
+
+### http.multipart_form_file
+
+Create a file part for multipart form:
+
+```starlark
+http.multipart_form_file(
+    "file_field",
+    ctx.path("path/to/file.txt"),
+    content_type = "text/plain",
+    filename = "custom_name.txt",
+)
+```
+
+#### Parameters
+
+| Parameter      | Type         | Default                      | Description                     |
+| -------------- | ------------ | ---------------------------- | ------------------------------- |
+| `name`         | string       | N/A                          | Name of the form field          |
+| `path`         | CheckoutPath | N/A                          | Path to the file in checkout    |
+| `content_type` | string       | `"application/octet-stream"` | MIME content type for the file  |
+| `filename`     | string       | `None`                       | Custom filename (defaults path) |
+
+---
+
+## Utility Functions
+
+### http.url_encode
+
+URL-encode a string:
+
+```starlark
+encoded = http.url_encode("hello world")
+# Returns: "hello%20world"
+```
+
+#### Parameters
+
+| Parameter | Type   | Default | Description          |
+| --------- | ------ | ------- | -------------------- |
+| `input`   | string | N/A     | String to URL-encode |
+
+---
+
+## Examples
+
+### Feedback Workflow with HTTP Endpoint
+
+Post status updates to an external API:
+
+```starlark
+def _notify_status(ctx):
+    response = ctx.destination.post(
+        url = "https://api.example.com/status",
+        headers = {"Content-Type": "application/json"},
+        body = http.json({
+            "repo": ctx.params["repo"],
+            "status": "synced",
+            "ref": ctx.ref,
+        }),
+    )
+    if response.status_code != 200:
+        return ctx.error("Failed to post status: " + str(response.status_code))
+    return ctx.success()
+
+core.feedback(
+    name = "notify",
+    origin = git.github_trigger(
+        url = "https://github.com/org/repo",
+        events = ["push"],
+    ),
+    destination = http.endpoint(
+        hosts = [
+            http.host(
+                host = "api.example.com",
+                auth = http.bearer_auth(
+                    creds = credentials.static_secret("api_token", "API_TOKEN"),
+                ),
+            ),
+        ],
+    ),
+    actions = [
+        core.action(
+            impl = _notify_status,
+            params = {"repo": "org/repo"},
+        ),
+    ],
+)
+```
+
+### File Upload via Multipart Form
+
+Upload files to an API:
+
+```starlark
+def _upload_artifact(ctx):
+    response = ctx.destination.post(
+        url = "https://artifacts.example.com/upload",
+        body = http.multipart_form(
+            parts = [
+                http.multipart_form_text("version", ctx.ref),
+                http.multipart_form_file(
+                    "artifact",
+                    ctx.path("dist/package.tar.gz"),
+                    content_type = "application/gzip",
+                ),
+            ],
+        ),
+    )
+    return ctx.success() if response.status_code == 200 else ctx.error("Upload failed")
+```
+
+### Using with Remote File Origins
+
+HTTP authentication can be used with `remotefiles.origin`:
+
+```starlark
+core.workflow(
+    name = "sync_private",
+    origin = remotefiles.origin(
+        archive_source = "https://private.example.com/releases/${VERSION}.tar.gz",
+        unpack_method = "TAR_GZ",
+        auth = http.bearer_auth(
+            creds = credentials.static_secret("download_token", "DOWNLOAD_TOKEN"),
+        ),
+    ),
+    destination = git.destination(...),
+    authoring = authoring.overwrite("Bot <bot@example.com>"),
+)
+```
+
+---
+
+## Related Modules
+
+- [Remote Files Module](/reference/remotefiles/) - Uses HTTP for downloading archives
+- [CI/CD Authentication](/cicd/authentication/) - Authentication setup patterns
+- [Feedback Workflows](/workflows/feedback/) - Using HTTP endpoints in feedback
