@@ -1,0 +1,211 @@
+---
+title: XML Module Reference
+description: Reference for xml.* functions for XPath queries
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+# XML Module Reference
+
+The `xml` module provides functions for querying XML content using XPath expressions.
+
+## xml.xpath
+
+Run an XPath expression on XML content:
+
+```starlark
+result = xml.xpath(
+    content = "<root><item>value</item></root>",
+    expression = "/root/item/text()",
+    type = "STRING",
+)
+```
+
+### Parameters
+
+| Parameter    | Type   | Default  | Description                                |
+| ------------ | ------ | -------- | ------------------------------------------ |
+| `content`    | string | required | The XML content to query                   |
+| `expression` | string | required | XPath expression to evaluate               |
+| `type`       | string | required | Return type: `STRING`, `BOOLEAN`, `NUMBER` |
+
+### Return Types
+
+| Type      | Description                  | Example Result    |
+| --------- | ---------------------------- | ----------------- |
+| `STRING`  | Text content or string value | `"example"`       |
+| `BOOLEAN` | Boolean result of expression | `True` or `False` |
+| `NUMBER`  | Numeric value                | `42.0`            |
+
+---
+
+## Examples
+
+### Extract Text Value
+
+Get the text content of an element:
+
+```starlark
+xml_content = """
+<project>
+    <artifactId>my-project</artifactId>
+    <version>1.2.3</version>
+</project>
+"""
+
+version = xml.xpath(
+    content = xml_content,
+    expression = "/project/version/text()",
+    type = "STRING",
+)
+# version = "1.2.3"
+```
+
+### Check Element Existence
+
+Check if an element exists:
+
+```starlark
+has_snapshot = xml.xpath(
+    content = pom_content,
+    expression = "boolean(/project/version[contains(text(), 'SNAPSHOT')])",
+    type = "BOOLEAN",
+)
+# has_snapshot = True or False
+```
+
+### Count Elements
+
+Count matching elements:
+
+```starlark
+dep_count = xml.xpath(
+    content = pom_content,
+    expression = "count(/project/dependencies/dependency)",
+    type = "NUMBER",
+)
+# dep_count = 5.0
+```
+
+### Extract Attribute Value
+
+Get an attribute value:
+
+```starlark
+xml_content = """
+<root>
+    <item id="123" name="example"/>
+</root>
+"""
+
+item_id = xml.xpath(
+    content = xml_content,
+    expression = "/root/item/@id",
+    type = "STRING",
+)
+# item_id = "123"
+```
+
+---
+
+## Use Cases
+
+### Reading pom.xml (Maven)
+
+Extract Maven project coordinates:
+
+```starlark
+def _read_maven_coords(ctx):
+    pom = ctx.read_path(ctx.path("pom.xml"))
+
+    group_id = xml.xpath(
+        content = pom,
+        expression = "/project/groupId/text()",
+        type = "STRING",
+    )
+    artifact_id = xml.xpath(
+        content = pom,
+        expression = "/project/artifactId/text()",
+        type = "STRING",
+    )
+    version = xml.xpath(
+        content = pom,
+        expression = "/project/version/text()",
+        type = "STRING",
+    )
+
+    ctx.console.info(group_id + ":" + artifact_id + ":" + version)
+    return ctx.success()
+
+core.dynamic_transform(impl = _read_maven_coords)
+```
+
+### Validating XML Structure
+
+Verify required elements exist:
+
+```starlark
+def _validate_manifest(ctx):
+    manifest = ctx.read_path(ctx.path("AndroidManifest.xml"))
+
+    has_internet = xml.xpath(
+        content = manifest,
+        expression = "boolean(//uses-permission[@android:name='android.permission.INTERNET'])",
+        type = "BOOLEAN",
+    )
+
+    if not has_internet:
+        return ctx.error("Missing INTERNET permission in manifest")
+
+    return ctx.success()
+```
+
+### Conditional Transformations
+
+Apply transformations based on XML content:
+
+```starlark
+def _update_if_snapshot(ctx):
+    pom = ctx.read_path(ctx.path("pom.xml"))
+
+    is_snapshot = xml.xpath(
+        content = pom,
+        expression = "contains(/project/version/text(), 'SNAPSHOT')",
+        type = "BOOLEAN",
+    )
+
+    if is_snapshot:
+        ctx.console.warn("Syncing SNAPSHOT version - this may be unstable")
+
+    return ctx.success()
+```
+
+---
+
+## XPath Reference
+
+Common XPath expressions:
+
+| Expression                  | Description                         |
+| --------------------------- | ----------------------------------- |
+| `/root/child`               | Select child of root                |
+| `//element`                 | Select element anywhere in document |
+| `/root/item/text()`         | Get text content of item            |
+| `/root/item/@attr`          | Get attribute value                 |
+| `count(//item)`             | Count matching elements             |
+| `boolean(//item)`           | Check if element exists             |
+| `//item[1]`                 | First matching item                 |
+| `//item[@id='123']`         | Item with specific attribute value  |
+| `contains(text(), 'value')` | Text contains substring             |
+
+<Aside type="note">
+  XPath namespaces are not currently supported. For namespaced XML, you may need
+  to use string operations or local-name() function.
+</Aside>
+
+---
+
+## Next Steps
+
+- [Core Module Reference](/reference/core/) - Dynamic transformations
+- [TOML Module Reference](/reference/toml/) - Parsing TOML files
