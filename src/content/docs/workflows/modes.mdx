@@ -18,12 +18,13 @@ The `mode` parameter controls how Copybara creates commits in the destination re
 | `CHANGE_REQUEST`          | All → 1 PR | PR/CL       | Yes    | External review      |
 | `CHANGE_REQUEST_FROM_SOT` | All → 1 PR | PR/CL       | Yes    | Bidirectional        |
 
-<Aside type="note" title="PR vs CL">
+<Aside type="note" title="PR vs MR vs CL">
   **PR** (Pull Request) is [GitHub](https://github.com/)'s term for a code
-  review request. **CL** (Change List) is
-  [Gerrit](https://www.gerritcodereview.com/)'s equivalent. Copybara supports
-  both systems. See the [Glossary](/reference/glossary/#cl-change-list) for more
-  details.
+  review request. **MR** (Merge Request) is [GitLab](https://gitlab.com/)'s
+  equivalent. **CL** (Change List) is
+  [Gerrit](https://www.gerritcodereview.com/)'s term. Copybara supports all
+  three systems. See the [Glossary](/reference/glossary/#cl-change-list) for
+  more details.
 </Aside>
 
 ## SQUASH Mode
@@ -135,7 +136,7 @@ origin.c -> destination.c_prime
 
 ## CHANGE_REQUEST Mode
 
-Creates a pull request (GitHub) or change list (Gerrit) instead of pushing directly.
+Creates a pull request (GitHub), merge request (GitLab), or change list (Gerrit) instead of pushing directly.
 
 ```starlark
 core.workflow(
@@ -273,24 +274,38 @@ destination = git.destination(url = ..., push = "main"),
 Best for: When you need 1:1 commit mapping.
 
 </TabItem>
-<TabItem label="PR-based">
+<TabItem label="Review-based">
 
-Use **CHANGE_REQUEST** for PR-based workflows:
+Use **CHANGE_REQUEST** for review-based workflows (PRs, MRs, CLs):
 
 ```starlark
+# GitHub PR
 mode = "CHANGE_REQUEST",
 destination = git.github_pr_destination(
     url = "https://github.com/org/repo",
     destination_ref = "main",
+),
+
+# GitLab MR (experimental)
+destination = git.gitlab_mr_destination(
+    url = "https://gitlab.com/org/repo",
+    target_branch = "main",
+    credentials = ...,
+),
+
+# Gerrit CL
+destination = git.gerrit_destination(
+    url = "https://gerrit.example.com/repo",
+    push_to_refs_for = "main",
 ),
 ```
 
 Best for: When changes need review, or you lack push access.
 
 <Aside type="note">
-  You can also use `SQUASH` or `ITERATIVE` modes with PR destinations - the mode
-  controls how commits are created, while the destination controls where they
-  go. `CHANGE_REQUEST` mode is specifically optimized for PR workflows.
+  You can also use `SQUASH` or `ITERATIVE` modes with PR/MR destinations - the
+  mode controls how commits are created, while the destination controls where
+  they go. `CHANGE_REQUEST` mode is specifically optimized for review workflows.
 </Aside>
 
 </TabItem>
@@ -301,3 +316,5 @@ Best for: When changes need review, or you lack push access.
 - [CHANGE_REQUEST in depth](/workflows/change-request/)
 - [SQUASH vs ITERATIVE comparison](/workflows/squash-vs-iterative/)
 - [GitHub PR destination](/endpoints/github/)
+- [GitLab MR destination](/endpoints/gitlab/)
+- [Gerrit CL destination](/endpoints/gerrit/)

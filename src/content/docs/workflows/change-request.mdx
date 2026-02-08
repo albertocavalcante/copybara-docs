@@ -7,12 +7,12 @@ import { Aside, Steps, Tabs, TabItem } from "@astrojs/starlight/components";
 
 # CHANGE_REQUEST Mode
 
-CHANGE_REQUEST mode creates pull requests (GitHub) or change lists (Gerrit) instead of pushing directly to a branch. This is essential when:
+CHANGE_REQUEST mode creates pull requests (GitHub), merge requests (GitLab), or change lists (Gerrit) instead of pushing directly to a branch. This is essential when:
 
 - You don't have direct push access to the destination
 - Changes need human review before merging
 - You want an audit trail of synced changes
-- Organization policy requires PR-based workflows
+- Organization policy requires review-based workflows
 
 ## How It Works
 
@@ -206,6 +206,56 @@ destination = git.gerrit_destination(
 
 This creates a Gerrit change list (CL) for review.
 
+## GitLab MR Destination
+
+<Aside type="caution" title="Experimental">
+  GitLab Merge Request support is experimental and the API may change.
+</Aside>
+
+For GitLab-based workflows:
+
+```starlark
+core.workflow(
+    name = "sync-via-mr",
+
+    origin = git.origin(
+        url = "https://internal.example.com/repo",
+        ref = "main",
+    ),
+
+    destination = git.gitlab_mr_destination(
+        url = "https://gitlab.com/org/dest-repo",
+        credentials = credentials.username_password(
+            credentials.static_value("oauth2"),
+            credentials.static_secret("gitlab_token", "GITLAB_TOKEN"),
+        ),
+        target_branch = "main",
+        source_branch = "copybara/sync-${CONTEXT_REFERENCE}",
+        title = "Sync from internal",
+        body = "Automated sync from internal repository.",
+    ),
+
+    authoring = authoring.pass_thru(
+        default = "Copybara Bot <copybara@example.com>",
+    ),
+
+    mode = "CHANGE_REQUEST",
+)
+```
+
+### GitLab MR Parameters
+
+| Parameter       | Description                | Example                                      |
+| --------------- | -------------------------- | -------------------------------------------- |
+| `url`           | GitLab repository URL      | `https://gitlab.com/org/repo`                |
+| `credentials`   | Authentication credentials | See [GitLab Integration](/endpoints/gitlab/) |
+| `target_branch` | Target branch for MR       | `main`                                       |
+| `source_branch` | Branch name for the MR     | `copybara/sync-${CONTEXT_REFERENCE}`         |
+| `title`         | MR title                   | `Sync from internal`                         |
+| `body`          | MR description             | `Automated sync...`                          |
+
+See [GitLab Integration](/endpoints/gitlab/) for complete documentation.
+
 ## Authentication
 
 ### GitHub Personal Access Token
@@ -263,7 +313,7 @@ jobs:
       - name: Download Copybara
         run: |
           curl -fsSL -o copybara.jar \
-            https://github.com/google/copybara/releases/download/v20251215/copybara_deploy.jar
+            https://github.com/google/copybara/releases/latest/download/copybara_deploy.jar
 
       - name: Configure Git
         run: |
@@ -325,6 +375,8 @@ java -jar copybara.jar migrate copy.bara.sky sync-customer-docs --ignore-noop
 
 ## Next Steps
 
-- [GitHub integration details](/endpoints/github/)
+- [GitHub integration](/endpoints/github/) - PR destinations and API
+- [GitLab integration](/endpoints/gitlab/) - MR destinations (experimental)
+- [Gerrit integration](/endpoints/gerrit/) - CL destinations
 - [GitHub Actions setup](/cicd/github-actions/)
 - [Transformations](/transformations/overview/)

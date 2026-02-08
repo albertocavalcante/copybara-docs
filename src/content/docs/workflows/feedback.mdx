@@ -30,6 +30,12 @@ core.feedback(
 - Post comments on related PRs/issues
 - Trigger downstream workflows
 
+<Aside type="note" title="Platform Support">
+  Feedback workflows currently support **GitHub** and **Gerrit**. GitLab
+  feedback endpoints are not yet implemented. For GitLab or custom integrations,
+  use the [HTTP endpoint](/reference/http/) to make API calls directly.
+</Aside>
+
 ## GitHub Trigger Origin
 
 Listen to GitHub events:
@@ -237,3 +243,4 @@ core.workflow(
 
 - [GitHub integration](/endpoints/github/)
 - [Gerrit integration](/endpoints/gerrit/)
+- [HTTP module](/reference/http/) - Custom feedback endpoints
