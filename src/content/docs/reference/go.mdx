@@ -1,0 +1,265 @@
+---
+title: Go Module Reference
+description: Reference for go.* functions for Go module proxy integration
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+# Go Module Reference
+
+The `go` module provides functions for working with Go modules through the Go module proxy. This enables Copybara to sync Go packages from the public proxy or private registries.
+
+<Aside type="note">
+  This module is designed to work with `remotefiles.origin()` for syncing Go
+  modules as archives. For Git-based Go modules, you can also use `git.origin()`
+  directly.
+</Aside>
+
+## go.go_proxy_version_list
+
+Create a version list from the Go module proxy:
+
+```starlark
+version_list = go.go_proxy_version_list(
+    module = "github.com/google/gopacket",
+    ref = None,
+    auth = None,
+)
+```
+
+### Parameters
+
+| Parameter | Type            | Default  | Description                                         |
+| --------- | --------------- | -------- | --------------------------------------------------- |
+| `module`  | string          | required | Go module path (e.g., `github.com/google/gopacket`) |
+| `ref`     | string          | `None`   | Specific ref/branch to track versions from          |
+| `auth`    | AuthInterceptor | `None`   | Authentication for private module proxies           |
+
+### Module Path Normalization
+
+Go module paths with uppercase characters are automatically normalized. For example, `github.com/Azure/azure-sdk-for-go` becomes `github.com/!azure/azure-sdk-for-go` internally.
+
+### The `ref` Parameter
+
+The `ref` parameter is used to track versions at specific branches or revisions:
+
+- When `ref` is not set: Returns the list of tagged versions from the proxy's `/@v/list` endpoint
+- When `ref` is set: Extracts version data from `/@v/${ref}.info` endpoint
+
+```starlark
+# Track tagged releases
+go.go_proxy_version_list(
+    module = "github.com/org/module",
+)
+
+# Track a specific branch
+go.go_proxy_version_list(
+    module = "github.com/org/module",
+    ref = "main",
+)
+```
+
+---
+
+## go.go_proxy_resolver
+
+Create a version resolver for Go modules:
+
+```starlark
+resolver = go.go_proxy_resolver(
+    module = "github.com/google/gopacket",
+    auth = None,
+)
+```
+
+### Parameters
+
+| Parameter | Type            | Default  | Description                                         |
+| --------- | --------------- | -------- | --------------------------------------------------- |
+| `module`  | string          | required | Go module path (e.g., `github.com/google/gopacket`) |
+| `auth`    | AuthInterceptor | `None`   | Authentication for private module proxies           |
+
+This resolver handles command-line passed refs and resolves them to specific versions using the Go proxy.
+
+---
+
+## Examples
+
+### Sync Go Module from Public Proxy
+
+Sync a Go module from the public proxy.golang.org:
+
+```starlark
+core.workflow(
+    name = "sync_go_module",
+    origin = remotefiles.origin(
+        archive_source = "https://proxy.golang.org/github.com/google/gopacket/@v/${VERSION}.zip",
+        unpack_method = "ZIP",
+        version_list = go.go_proxy_version_list(
+            module = "github.com/google/gopacket",
+        ),
+        origin_version_selector = core.latest_version(),
+    ),
+    destination = git.destination(
+        url = "https://github.com/internal/gopacket-mirror",
+        push = "main",
+    ),
+    authoring = authoring.overwrite("Go Sync Bot <go-sync@example.com>"),
+    transformations = [
+        # Remove the module path prefix directory
+        core.move("github.com/google/gopacket@${VERSION}/", ""),
+    ],
+)
+```
+
+<Aside type="note">
+  The Go proxy serves modules in ZIP format with a directory structure like
+  `module/path@version/`. You typically want to move the contents to the root.
+</Aside>
+
+### Sync Specific Version Pattern
+
+Sync only stable releases (no pre-release versions):
+
+```starlark
+core.workflow(
+    name = "sync_stable",
+    origin = remotefiles.origin(
+        archive_source = "https://proxy.golang.org/github.com/org/module/@v/${VERSION}.zip",
+        unpack_method = "ZIP",
+        version_list = go.go_proxy_version_list(
+            module = "github.com/org/module",
+        ),
+        origin_version_selector = core.latest_version(
+            format = "^v[0-9]+\\.[0-9]+\\.[0-9]+$",  # No -alpha, -beta, -rc
+        ),
+    ),
+    destination = git.destination(...),
+    authoring = authoring.overwrite("Bot <bot@example.com>"),
+)
+```
+
+### Sync from Private Go Proxy
+
+Sync from a private Go module proxy with authentication:
+
+```starlark
+core.workflow(
+    name = "sync_private_module",
+    origin = remotefiles.origin(
+        archive_source = "https://goproxy.internal.com/github.com/internal/module/@v/${VERSION}.zip",
+        unpack_method = "ZIP",
+        version_list = go.go_proxy_version_list(
+            module = "github.com/internal/module",
+            auth = http.bearer_auth(
+                creds = credentials.static_secret("proxy_token", "GOPROXY_TOKEN"),
+            ),
+        ),
+        origin_version_selector = core.latest_version(),
+        auth = http.bearer_auth(
+            creds = credentials.static_secret("proxy_token", "GOPROXY_TOKEN"),
+        ),
+    ),
+    destination = git.destination(
+        url = "https://github.com/org/module-vendor",
+        push = "main",
+    ),
+    authoring = authoring.overwrite("Bot <bot@example.com>"),
+)
+```
+
+### Track Main Branch
+
+Sync the latest commit from the main branch instead of tagged releases:
+
+```starlark
+core.workflow(
+    name = "sync_main_branch",
+    origin = remotefiles.origin(
+        archive_source = "https://proxy.golang.org/github.com/org/module/@v/${VERSION}.zip",
+        unpack_method = "ZIP",
+        version_list = go.go_proxy_version_list(
+            module = "github.com/org/module",
+            ref = "main",  # Track main branch
+        ),
+        origin_version_selector = core.latest_version(),
+    ),
+    destination = git.destination(...),
+    authoring = authoring.overwrite("Bot <bot@example.com>"),
+)
+```
+
+### With Version Resolver
+
+Use a resolver for CLI-passed refs:
+
+```starlark
+core.workflow(
+    name = "sync_go_module",
+    origin = remotefiles.origin(
+        archive_source = "https://proxy.golang.org/github.com/org/module/@v/${VERSION}.zip",
+        unpack_method = "ZIP",
+        version_resolver = go.go_proxy_resolver(
+            module = "github.com/org/module",
+        ),
+    ),
+    destination = git.destination(...),
+    authoring = authoring.overwrite("Bot <bot@example.com>"),
+)
+```
+
+Run with a specific ref:
+
+```bash
+copybara migrate copy.bara.sky sync_go_module v1.2.3
+copybara migrate copy.bara.sky sync_go_module main
+```
+
+---
+
+## Go Module ZIP Structure
+
+When downloading from the Go proxy, the ZIP archive contains:
+
+```
+github.com/org/module@v1.2.3/
+├── go.mod
+├── go.sum
+├── main.go
+├── pkg/
+│   └── ...
+└── ...
+```
+
+The version appears in the directory name. Use `core.move()` to flatten:
+
+```starlark
+transformations = [
+    # For a fixed version
+    core.move("github.com/org/module@v1.2.3/", ""),
+
+    # For dynamic versions, you'll need to handle the version string
+    # The ${VERSION} label may help if captured during origin resolution
+]
+```
+
+---
+
+## Environment Setup
+
+For private proxies, set the token in the environment:
+
+```bash
+export GOPROXY_TOKEN="your-private-proxy-token"
+copybara migrate copy.bara.sky sync_go_module
+```
+
+For the public proxy (proxy.golang.org), no authentication is needed.
+
+---
+
+## Next Steps
+
+- [Remote Files Module](/reference/remotefiles/) - Using Go modules with remotefiles.origin
+- [HTTP Module](/reference/http/) - Authentication options
+- [Core Module](/reference/core/) - Version selectors and transformations

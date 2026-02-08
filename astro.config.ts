@@ -148,6 +148,7 @@ export default defineConfig({
 						{ label: 'Remote Files Module', slug: 'reference/remotefiles' },
 					{ label: 'HTTP Module', slug: 'reference/http' },
 					{ label: 'Format Module', slug: 'reference/format' },
+					{ label: 'Go Module', slug: 'reference/go' },
 						{ label: 'Glob Reference', slug: 'reference/glob' },
 					],
 				},
