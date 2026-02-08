@@ -1,0 +1,418 @@
+---
+title: Working with Unsupported Platforms
+description: Strategies for using Copybara with Git platforms that don't have first-class support
+---
+
+import { Aside, Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+# Working with Unsupported Git Platforms
+
+Copybara provides first-class support for GitHub, GitLab, and Gerrit. For other platforms like Bitbucket, Azure DevOps, Gitea, or Codeberg, you can still use Copybara effectively with the right approach.
+
+## First-Class vs Generic Support
+
+| Platform    | Origin                | Destination                | PR/MR/CL Support                             |
+| ----------- | --------------------- | -------------------------- | -------------------------------------------- |
+| Generic Git | `git.origin()`        | `git.destination()`        | No                                           |
+| GitHub      | `git.github_origin()` | `git.github_destination()` | `git.github_pr_destination()`                |
+| GitLab      | `git.gitlab_origin()` | —                          | `git.gitlab_mr_destination()` (experimental) |
+| Gerrit      | `git.gerrit_origin()` | `git.gerrit_destination()` | Built-in (CLs)                               |
+
+<Aside type="note">
+  All Git platforms work with `git.origin()` and `git.destination()` for reading
+  and pushing code. The difference is whether Copybara can natively create pull
+  requests, merge requests, or change lists.
+</Aside>
+
+## Unsupported Platforms
+
+These popular platforms require workarounds for PR/MR creation:
+
+<CardGrid>
+  <Card title="Bitbucket" icon="seti:bitbucket">
+    Atlassian's Git hosting (Cloud and Server/Data Center)
+  </Card>
+  <Card title="Azure DevOps" icon="seti:azure">
+    Microsoft's DevOps platform with Azure Repos
+  </Card>
+  <Card title="Gitea / Forgejo" icon="git">
+    Self-hosted, lightweight Git forges
+  </Card>
+  <Card title="Codeberg" icon="git">
+    Hosted Forgejo instance for open source
+  </Card>
+</CardGrid>
+
+## Choose Your Approach
+
+The right approach depends on your requirements:
+
+| If You Need...                 | Use This Approach                                                   |
+| ------------------------------ | ------------------------------------------------------------------- |
+| Simplest possible setup        | [Direct Push](#approach-1-direct-push)                              |
+| Code review without automation | [Feature Branch + Manual PR](#approach-2-feature-branch--manual-pr) |
+| Scriptable PR creation         | [Platform CLI](#approach-3-platform-cli)                            |
+| Full Copybara integration      | [HTTP Endpoint](#approach-4-http-endpoint)                          |
+| Existing CI infrastructure     | [Webhook + CI](#approach-5-webhook--ci)                             |
+| Simple wrapper script          | [Post-Migration Script](#approach-6-wrapper-script)                 |
+
+---
+
+## Approach 1: Direct Push
+
+**Works for:** All platforms
+**Limitations:** No PR/MR creation, bypasses code review
+
+The simplest approach uses generic Git endpoints:
+
+```starlark
+core.workflow(
+    name = "sync",
+    origin = git.origin(
+        url = "https://bitbucket.org/org/source-repo.git",
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = "https://bitbucket.org/org/dest-repo.git",
+        push = "main",
+    ),
+    authoring = authoring.overwrite("Sync Bot <sync@example.com>"),
+)
+```
+
+**Pros:**
+
+- Universal compatibility
+- Simple configuration
+- Works with SSH and HTTPS
+
+**Cons:**
+
+- No PR/MR creation
+- Bypasses code review
+- May violate branch protection policies
+
+**Best for:**
+
+- Mirror repositories between platforms
+- Push to unprotected branches
+- Internal syncs where review isn't required
+
+---
+
+## Approach 2: Feature Branch + Manual PR
+
+**Works for:** All platforms
+**Effort:** Low (manual step required)
+
+Push to a feature branch, then create the PR manually in the platform's UI:
+
+```starlark
+destination = git.destination(
+    url = "https://bitbucket.org/org/repo.git",
+    push = "copybara/sync-latest",  # Feature branch, not main
+)
+```
+
+After Copybara runs, open the platform's web UI and create a PR from `copybara/sync-latest` to `main`.
+
+**Pros:**
+
+- Simple setup
+- Works with any platform
+- Respects code review workflow
+- Human oversight built in
+
+**Cons:**
+
+- Manual PR creation step
+- Not fully automated
+
+**Best for:**
+
+- Low-frequency syncs
+- When human oversight is desired anyway
+- Teams new to Copybara
+
+---
+
+## Approach 3: Platform CLI
+
+**Works for:** Platforms with CLIs
+**Effort:** Medium
+
+Run Copybara to push the branch, then use the platform's CLI to create the PR:
+
+```bash
+#!/bin/bash
+# sync-and-pr.sh
+
+# Step 1: Copybara pushes to feature branch
+java -jar copybara.jar migrate copy.bara.sky sync
+
+# Step 2: Create PR via platform CLI
+```
+
+### Bitbucket Cloud
+
+```bash
+# Install: pip install atlassian-python-api
+# Or use the official CLI
+bb pr create \
+  --source copybara/sync \
+  --destination main \
+  --title "Sync from source repository"
+```
+
+### Azure DevOps
+
+```bash
+# Install: az extension add --name azure-devops
+az repos pr create \
+  --source-branch copybara/sync \
+  --target-branch main \
+  --title "Sync from source repository"
+```
+
+### Gitea / Forgejo / Codeberg
+
+```bash
+# Install: go install code.gitea.io/tea@latest
+tea pr create \
+  --head copybara/sync \
+  --base main \
+  --title "Sync from source repository"
+```
+
+**Pros:**
+
+- Scriptable and automatable
+- Uses official, supported tools
+- Can be integrated into CI
+
+**Cons:**
+
+- Requires additional tooling
+- Two-step process
+- Platform-specific scripts
+
+See [Bitbucket](/guides/unsupported-platforms/bitbucket/), [Azure DevOps](/guides/unsupported-platforms/azure-devops/), or [Gitea](/guides/unsupported-platforms/gitea/) for complete examples.
+
+---
+
+## Approach 4: HTTP Endpoint
+
+**Works for:** Any platform with REST API
+**Effort:** High (requires Starlark coding)
+
+Use Copybara's `http.endpoint()` to create PRs via the platform's API:
+
+```starlark
+def _create_pr(ctx):
+    response = ctx.destination.post(
+        url = "https://api.bitbucket.org/2.0/repositories/org/repo/pullrequests",
+        headers = {"Content-Type": "application/json"},
+        body = http.json({
+            "title": "Sync from source",
+            "source": {"branch": {"name": "copybara/sync"}},
+            "destination": {"branch": {"name": "main"}},
+        }),
+    )
+    return ctx.success() if response.status_code == 201 else ctx.error("PR creation failed")
+
+core.feedback(
+    name = "create_pr",
+    origin = git.github_trigger(
+        url = "https://github.com/org/repo",
+        events = ["push"],
+    ),
+    destination = http.endpoint(
+        hosts = [
+            http.host(
+                host = "api.bitbucket.org",
+                auth = http.bearer_auth(
+                    creds = credentials.static_secret("bb_token", "BITBUCKET_TOKEN"),
+                ),
+            ),
+        ],
+    ),
+    actions = [core.action(impl = _create_pr)],
+)
+```
+
+**Pros:**
+
+- Fully integrated with Copybara
+- Can be triggered automatically
+- Works with any REST API
+- Single tool manages everything
+
+**Cons:**
+
+- Complex Starlark code
+- Requires understanding platform APIs
+- Harder to debug
+
+See platform-specific guides for complete `http.endpoint()` examples.
+
+---
+
+## Approach 5: Webhook + CI
+
+**Works for:** Any platform with webhooks
+**Effort:** Medium-High
+
+Let your CI system handle PR creation when Copybara pushes:
+
+```
+[Copybara] --push--> [Branch] --webhook--> [CI System] --API--> [Create PR]
+```
+
+### GitHub Actions Example
+
+Even if your destination is not GitHub, you can use GitHub Actions to create PRs elsewhere:
+
+```yaml
+# .github/workflows/create-pr.yml
+name: Create PR on Bitbucket
+
+on:
+  push:
+    branches: ["copybara/**"]
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Bitbucket PR
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.BITBUCKET_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "title": "Sync from source",
+              "source": {"branch": {"name": "${{ github.ref_name }}"}},
+              "destination": {"branch": {"name": "main"}}
+            }' \
+            https://api.bitbucket.org/2.0/repositories/org/repo/pullrequests
+```
+
+**Pros:**
+
+- Separation of concerns
+- Uses existing CI infrastructure
+- Easier to debug and modify
+- Familiar tooling for most teams
+
+**Cons:**
+
+- Requires CI setup
+- More moving parts
+- Asynchronous (PR created after Copybara finishes)
+
+---
+
+## Approach 6: Wrapper Script
+
+**Works for:** All platforms
+**Effort:** Low-Medium
+
+A simple shell script that runs Copybara then creates the PR:
+
+```bash
+#!/bin/bash
+# sync-with-pr.sh
+
+set -e
+
+PLATFORM="${PLATFORM:-bitbucket}"
+SOURCE_BRANCH="copybara/sync"
+TARGET_BRANCH="main"
+
+# Run Copybara
+java -jar copybara.jar migrate copy.bara.sky sync
+
+# Check if changes were pushed
+if git ls-remote --exit-code origin "$SOURCE_BRANCH" >/dev/null 2>&1; then
+    echo "Changes pushed to $SOURCE_BRANCH, creating PR..."
+
+    case "$PLATFORM" in
+        bitbucket)
+            curl -X POST \
+                -H "Authorization: Bearer $BITBUCKET_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "{\"title\":\"Sync\",\"source\":{\"branch\":{\"name\":\"$SOURCE_BRANCH\"}},\"destination\":{\"branch\":{\"name\":\"$TARGET_BRANCH\"}}}" \
+                "https://api.bitbucket.org/2.0/repositories/$WORKSPACE/$REPO/pullrequests"
+            ;;
+        azure)
+            az repos pr create \
+                --source-branch "$SOURCE_BRANCH" \
+                --target-branch "$TARGET_BRANCH" \
+                --title "Sync from source"
+            ;;
+        gitea)
+            curl -X POST \
+                -H "Authorization: token $GITEA_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "{\"title\":\"Sync\",\"head\":\"$SOURCE_BRANCH\",\"base\":\"$TARGET_BRANCH\"}" \
+                "$GITEA_URL/api/v1/repos/$OWNER/$REPO/pulls"
+            ;;
+    esac
+else
+    echo "No changes to sync"
+fi
+```
+
+**Pros:**
+
+- Simple shell scripting
+- Easy to understand and modify
+- No Copybara changes needed
+- Portable across CI systems
+
+**Cons:**
+
+- External to Copybara
+- Need to handle error cases manually
+- Less integrated
+
+---
+
+## Approach Comparison
+
+| Approach                | Automation | Complexity | PR Creation | Best For                    |
+| ----------------------- | ---------- | ---------- | ----------- | --------------------------- |
+| Direct Push             | Full       | Low        | None        | Mirrors, unprotected sync   |
+| Feature Branch + Manual | Partial    | Low        | Manual      | Low-frequency, human review |
+| Platform CLI            | Full       | Medium     | Automated   | Teams familiar with CLIs    |
+| HTTP Endpoint           | Full       | High       | Automated   | Full Copybara integration   |
+| Webhook + CI            | Full       | Medium     | Automated   | Existing CI infrastructure  |
+| Wrapper Script          | Full       | Low-Medium | Automated   | Simple, portable automation |
+
+## Platform-Specific Guides
+
+<CardGrid>
+  <LinkCard
+    title="Bitbucket"
+    description="Bitbucket Cloud and Server/Data Center"
+    href="/guides/unsupported-platforms/bitbucket/"
+  />
+  <LinkCard
+    title="Azure DevOps"
+    description="Azure Repos and Azure Pipelines"
+    href="/guides/unsupported-platforms/azure-devops/"
+  />
+  <LinkCard
+    title="Gitea & Friends"
+    description="Gitea, Forgejo, Codeberg, Gogs"
+    href="/guides/unsupported-platforms/gitea/"
+  />
+</CardGrid>
+
+## Next Steps
+
+- [Bitbucket guide](/guides/unsupported-platforms/bitbucket/) - Complete Bitbucket Cloud and Server examples
+- [Azure DevOps guide](/guides/unsupported-platforms/azure-devops/) - Azure Repos integration
+- [Gitea guide](/guides/unsupported-platforms/gitea/) - Gitea, Forgejo, and Codeberg
+- [HTTP module reference](/reference/http/) - For building custom API integrations
+- [Feedback workflows](/workflows/feedback/) - Trigger actions on events

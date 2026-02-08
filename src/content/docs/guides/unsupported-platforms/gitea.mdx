@@ -1,0 +1,514 @@
+---
+title: Gitea, Forgejo & Codeberg
+description: Using Copybara with Gitea, Forgejo, Gogs, and Codeberg
+---
+
+import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
+
+# Gitea, Forgejo & Codeberg Integration
+
+This guide covers lightweight, GitHub-compatible Git forges:
+
+- **Gitea** - Self-hosted Git service
+- **Forgejo** - Community fork of Gitea
+- **Codeberg** - Hosted Forgejo instance for open source
+- **Gogs** - Predecessor to Gitea (limited API)
+
+These platforms share similar APIs based on GitHub's design, making integration straightforward.
+
+<Aside type="tip">
+Gitea, Forgejo, and Codeberg have nearly identical APIs. Code examples work
+across all three with only URL changes.
+</Aside>
+
+## Basic Setup
+
+### Reading from Gitea/Forgejo/Codeberg
+
+<Tabs>
+<TabItem label="Gitea (Self-hosted)">
+```starlark
+origin = git.origin(
+    url = "https://gitea.company.com/owner/repo.git",
+    ref = "main",
+)
+```
+</TabItem>
+<TabItem label="Codeberg">
+```starlark
+origin = git.origin(
+    url = "https://codeberg.org/owner/repo.git",
+    ref = "main",
+)
+```
+</TabItem>
+<TabItem label="Forgejo">
+```starlark
+origin = git.origin(
+    url = "https://forgejo.example.com/owner/repo.git",
+    ref = "main",
+)
+```
+</TabItem>
+</Tabs>
+
+### Pushing to Gitea/Forgejo/Codeberg
+
+```starlark
+destination = git.destination(
+    url = "https://codeberg.org/owner/repo.git",
+    push = "copybara/sync",  # Feature branch for PR
+)
+```
+
+### Complete Workflow
+
+```starlark
+core.workflow(
+    name = "sync",
+    origin = git.origin(
+        url = "https://github.com/org/source-repo.git",
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = "https://codeberg.org/owner/dest-repo.git",
+        push = "copybara/sync",
+    ),
+    authoring = authoring.overwrite("Sync Bot <sync@example.com>"),
+    transformations = [
+        metadata.squash_notes(),
+    ],
+    mode = "SQUASH",
+)
+```
+
+## Authentication
+
+### Access Tokens
+
+Create an access token in the platform's settings:
+
+1. Go to **Settings** → **Applications** → **Access Tokens**
+2. Create token with permissions: `write:repository`, `write:issue`
+3. Use token in URL
+
+```bash
+# Configure credentials
+git config --global credential.helper store
+echo "https://username:$TOKEN@codeberg.org" >> ~/.git-credentials
+```
+
+<Aside type="note">
+For Gitea/Forgejo, replace `codeberg.org` with your instance URL.
+</Aside>
+
+---
+
+## Creating Pull Requests
+
+### Method 1: Tea CLI
+
+The `tea` CLI is the official Gitea command-line tool:
+
+```bash
+# Install tea
+go install code.gitea.io/tea@latest
+
+# Or download binary
+curl -fsSL https://dl.gitea.io/tea/latest/tea-latest-linux-amd64 -o tea
+chmod +x tea
+
+# Login (interactive)
+tea login add
+
+# Or login non-interactively
+tea login add \
+  --name codeberg \
+  --url https://codeberg.org \
+  --token $GITEA_TOKEN
+```
+
+#### Create PR with Tea
+
+```bash
+#!/bin/bash
+set -e
+
+# Run Copybara first
+java -jar copybara.jar migrate copy.bara.sky sync
+
+# Create PR using tea
+tea pr create \
+  --head copybara/sync \
+  --base main \
+  --title "Sync from source repository" \
+  --description "Automated sync via Copybara."
+```
+
+#### Additional Tea Options
+
+```bash
+tea pr create \
+  --head copybara/sync \
+  --base main \
+  --title "Sync from source repository" \
+  --assignees "reviewer1,reviewer2" \
+  --labels "automated,sync" \
+  --milestone "v1.0"
+```
+
+### Method 2: REST API with curl
+
+```bash
+#!/bin/bash
+set -e
+
+GITEA_URL="https://codeberg.org"  # Or your Gitea instance
+OWNER="your-owner"
+REPO="your-repo"
+SOURCE_BRANCH="copybara/sync"
+TARGET_BRANCH="main"
+
+# Run Copybara
+java -jar copybara.jar migrate copy.bara.sky sync
+
+# Check if branch exists
+if git ls-remote --exit-code origin "$SOURCE_BRANCH" >/dev/null 2>&1; then
+    # Create PR
+    curl -X POST \
+      -H "Authorization: token $GITEA_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "{
+        \"title\": \"Sync from source repository\",
+        \"head\": \"$SOURCE_BRANCH\",
+        \"base\": \"$TARGET_BRANCH\",
+        \"body\": \"Automated sync via Copybara.\"
+      }" \
+      "$GITEA_URL/api/v1/repos/$OWNER/$REPO/pulls"
+fi
+```
+
+### Method 3: HTTP Endpoint (Advanced)
+
+Use Copybara's `http.endpoint()` for fully integrated PR creation:
+
+```starlark
+def _create_gitea_pr(ctx):
+    """Create a Gitea/Forgejo/Codeberg pull request."""
+    gitea_host = "codeberg.org"  # Or your Gitea instance
+    owner = "your-owner"
+    repo = "your-repo"
+
+    response = ctx.destination.post(
+        url = "https://{}/api/v1/repos/{}/{}/pulls".format(
+            gitea_host, owner, repo
+        ),
+        headers = {"Content-Type": "application/json"},
+        body = http.json({
+            "title": "Sync from source: " + ctx.refs[0].ref,
+            "head": "copybara/sync",
+            "base": "main",
+            "body": "Automated sync via Copybara.\n\nSource: " + ctx.refs[0].url,
+        }),
+    )
+
+    if response.status_code == 201:
+        return ctx.success()
+    elif response.status_code == 409:
+        # PR already exists
+        ctx.console.info("PR already exists, skipping creation")
+        return ctx.success()
+    else:
+        return ctx.error("Failed to create PR: " + str(response.status_code))
+
+core.feedback(
+    name = "create_gitea_pr",
+    origin = git.github_trigger(
+        url = "https://github.com/org/source-repo",
+        events = ["push"],
+    ),
+    destination = http.endpoint(
+        hosts = [
+            http.host(
+                host = "codeberg.org",  # Or your Gitea instance
+                auth = http.bearer_auth(
+                    creds = credentials.static_secret("gitea_token", "GITEA_TOKEN"),
+                ),
+            ),
+        ],
+    ),
+    actions = [core.action(impl = _create_gitea_pr)],
+)
+```
+
+---
+
+## CI/CD Integration
+
+### GitHub Actions (Syncing to Codeberg)
+
+```yaml
+name: Sync to Codeberg
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Download Copybara
+        run: |
+          curl -fsSL -o copybara.jar \
+            https://github.com/google/copybara/releases/latest/download/copybara_deploy.jar
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run Copybara
+        env:
+          GITEA_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        run: |
+          # Configure Codeberg credentials
+          echo "https://token:$GITEA_TOKEN@codeberg.org" >> ~/.git-credentials
+          git config --global credential.helper store
+
+          # Run Copybara
+          java -jar copybara.jar migrate copy.bara.sky sync --ignore-noop
+
+      - name: Create Pull Request
+        if: success()
+        env:
+          GITEA_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        run: |
+          # Check if PR already exists
+          EXISTING_PR=$(curl -s \
+            -H "Authorization: token $GITEA_TOKEN" \
+            "https://codeberg.org/api/v1/repos/${{ vars.CODEBERG_OWNER }}/${{ vars.CODEBERG_REPO }}/pulls?state=open" \
+            | jq '[.[] | select(.head.ref == "copybara/sync")] | length')
+
+          if [ "$EXISTING_PR" = "0" ]; then
+            curl -X POST \
+              -H "Authorization: token $GITEA_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "title": "Sync from GitHub",
+                "head": "copybara/sync",
+                "base": "main"
+              }' \
+              "https://codeberg.org/api/v1/repos/${{ vars.CODEBERG_OWNER }}/${{ vars.CODEBERG_REPO }}/pulls"
+          else
+            echo "PR already exists, skipping creation"
+          fi
+```
+
+### Gitea Actions (Self-hosted)
+
+If your source is in Gitea and you're syncing elsewhere:
+
+```yaml
+# .gitea/workflows/sync.yml
+name: Sync to Destination
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    container:
+      image: eclipse-temurin:21-jdk
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Copybara
+        run: |
+          curl -fsSL -o copybara.jar \
+            https://github.com/google/copybara/releases/latest/download/copybara_deploy.jar
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "Gitea Actions"
+          git config --global user.email "actions@gitea.local"
+          echo "https://token:${{ secrets.DEST_TOKEN }}@github.com" >> ~/.git-credentials
+          git config --global credential.helper store
+
+      - name: Run Copybara
+        run: java -jar copybara.jar migrate copy.bara.sky sync --ignore-noop
+```
+
+### Woodpecker CI
+
+For Gitea/Forgejo with Woodpecker CI:
+
+```yaml
+# .woodpecker.yml
+pipeline:
+  sync:
+    image: eclipse-temurin:21-jdk
+    commands:
+      - curl -fsSL -o copybara.jar https://github.com/google/copybara/releases/latest/download/copybara_deploy.jar
+      - git config --global user.name "Woodpecker CI"
+      - git config --global user.email "woodpecker@ci.local"
+      - echo "https://token:$DEST_TOKEN@github.com" >> ~/.git-credentials
+      - git config --global credential.helper store
+      - java -jar copybara.jar migrate copy.bara.sky sync --ignore-noop
+    secrets: [DEST_TOKEN]
+    when:
+      branch: main
+```
+
+---
+
+## API Reference
+
+### Gitea/Forgejo/Codeberg API
+
+**Base URL:** `https://your-instance.com/api/v1` (or `https://codeberg.org/api/v1`)
+
+| Endpoint                                 | Method | Description |
+| ---------------------------------------- | ------ | ----------- |
+| `/repos/{owner}/{repo}/pulls`            | POST   | Create PR   |
+| `/repos/{owner}/{repo}/pulls`            | GET    | List PRs    |
+| `/repos/{owner}/{repo}/pulls/{id}`       | GET    | Get PR      |
+| `/repos/{owner}/{repo}/pulls/{id}`       | PATCH  | Update PR   |
+| `/repos/{owner}/{repo}/pulls/{id}/merge` | POST   | Merge PR    |
+
+**Authentication:** `Authorization: token YOUR_TOKEN`
+
+**Documentation:**
+
+- [Gitea API](https://docs.gitea.io/en-us/api-usage/)
+- [Codeberg API](https://codeberg.org/api/swagger) (same as Gitea)
+
+### Common API Patterns
+
+#### List Open PRs
+
+```bash
+curl -H "Authorization: token $GITEA_TOKEN" \
+  "$GITEA_URL/api/v1/repos/$OWNER/$REPO/pulls?state=open"
+```
+
+#### Get PR by Head Branch
+
+```bash
+# Filter in response - API doesn't have direct filter
+curl -s -H "Authorization: token $GITEA_TOKEN" \
+  "$GITEA_URL/api/v1/repos/$OWNER/$REPO/pulls?state=open" \
+  | jq '.[] | select(.head.ref == "copybara/sync")'
+```
+
+#### Add Labels to PR
+
+```bash
+curl -X PATCH \
+  -H "Authorization: token $GITEA_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"labels": [1, 2, 3]}' \
+  "$GITEA_URL/api/v1/repos/$OWNER/$REPO/pulls/$PR_ID"
+```
+
+#### Add Reviewers
+
+```bash
+curl -X POST \
+  -H "Authorization: token $GITEA_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"reviewers": ["username1", "username2"]}' \
+  "$GITEA_URL/api/v1/repos/$OWNER/$REPO/pulls/$PR_ID/requested_reviewers"
+```
+
+---
+
+## Platform Differences
+
+| Feature           | Gitea       | Forgejo     | Codeberg    | Gogs    |
+| ----------------- | ----------- | ----------- | ----------- | ------- |
+| API Compatibility | GitHub-like | GitHub-like | GitHub-like | Limited |
+| Actions CI        | Yes         | Yes         | Yes         | No      |
+| Tea CLI           | Yes         | Yes         | Yes         | No      |
+| PR Reviewers      | Yes         | Yes         | Yes         | No      |
+| Draft PRs         | Yes (1.17+) | Yes         | Yes         | No      |
+
+<Aside type="caution">
+**Gogs** has a more limited API compared to Gitea/Forgejo. Some features like
+reviewers and labels may not be available. Consider migrating to Gitea or
+Forgejo for better API support.
+</Aside>
+
+---
+
+## Troubleshooting
+
+### Authentication Errors
+
+```
+fatal: Authentication failed for 'https://codeberg.org/...'
+```
+
+**Solutions:**
+
+- Verify token has `write:repository` scope
+- Check token hasn't expired
+- Ensure correct URL format (`https://token:$TOKEN@host`)
+
+### PR Creation Fails with 422
+
+```json
+{ "message": "head and base must be different" }
+```
+
+**Solutions:**
+
+- Verify source and target branches are different
+- Check branch names are correct
+- Ensure Copybara actually pushed changes
+
+### PR Already Exists (409)
+
+```json
+{ "message": "pull request already exists" }
+```
+
+**Solutions:**
+
+- Query for existing PRs before creating
+- Update the existing PR instead
+- Close old PR and create new one
+
+### Branch Not Found
+
+```json
+{ "message": "branch does not exist" }
+```
+
+**Solutions:**
+
+- Verify Copybara pushed the branch successfully
+- Check branch name matches exactly (case-sensitive)
+- Wait for push to complete before API call
+
+## Next Steps
+
+- [Overview](/guides/unsupported-platforms/overview/) - All approaches compared
+- [Bitbucket](/guides/unsupported-platforms/bitbucket/) - Bitbucket Cloud and Server
+- [Azure DevOps](/guides/unsupported-platforms/azure-devops/) - Azure Repos integration
+- [HTTP module](/reference/http/) - Build custom API integrations

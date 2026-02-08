@@ -1,0 +1,453 @@
+---
+title: Azure DevOps Integration
+description: Using Copybara with Azure Repos and Azure Pipelines
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+# Azure DevOps Integration
+
+Azure DevOps (Azure Repos) doesn't have first-class Copybara support, but you can integrate it using `git.origin()`, `git.destination()`, and the Azure CLI or REST API for PR creation.
+
+## Basic Setup
+
+### Reading from Azure Repos
+
+```starlark
+origin = git.origin(
+    url = "https://dev.azure.com/organization/project/_git/repo",
+    ref = "main",
+)
+```
+
+For SSH access:
+
+```starlark
+origin = git.origin(
+    url = "git@ssh.dev.azure.com:v3/organization/project/repo",
+    ref = "main",
+)
+```
+
+### Pushing to Azure Repos
+
+```starlark
+destination = git.destination(
+    url = "https://dev.azure.com/organization/project/_git/repo",
+    push = "main",
+)
+```
+
+### Complete Workflow
+
+```starlark
+core.workflow(
+    name = "sync",
+    origin = git.origin(
+        url = "https://github.com/org/source-repo.git",
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = "https://dev.azure.com/myorg/myproject/_git/dest-repo",
+        push = "copybara/sync",  # Feature branch for PR
+    ),
+    authoring = authoring.overwrite("Sync Bot <sync@example.com>"),
+    transformations = [
+        metadata.squash_notes(),
+    ],
+    mode = "SQUASH",
+)
+```
+
+## Authentication
+
+### Personal Access Token (PAT)
+
+Create a PAT in Azure DevOps:
+
+1. Go to **User settings** → **Personal access tokens**
+2. Create token with scopes: `Code (Read & Write)`, `Pull Request (Read & Write)`
+3. Use in URL with any username
+
+```bash
+# Configure credentials
+git config --global credential.helper store
+echo "https://username:$PAT@dev.azure.com" >> ~/.git-credentials
+```
+
+<Aside type="tip">
+  For the username, you can use any value (e.g., "pat"). Azure DevOps only
+  validates the token.
+</Aside>
+
+### Azure CLI Authentication
+
+```bash
+# Login to Azure
+az login
+
+# Configure Azure DevOps extension
+az extension add --name azure-devops
+az devops configure --defaults organization=https://dev.azure.com/myorg project=myproject
+```
+
+---
+
+## Creating Pull Requests
+
+### Method 1: Azure CLI
+
+The Azure CLI provides the most straightforward way to create PRs:
+
+```bash
+#!/bin/bash
+set -e
+
+SOURCE_BRANCH="copybara/sync"
+TARGET_BRANCH="main"
+REPO="my-repo"
+
+# Run Copybara first
+java -jar copybara.jar migrate copy.bara.sky sync
+
+# Create PR using Azure CLI
+az repos pr create \
+  --repository "$REPO" \
+  --source-branch "$SOURCE_BRANCH" \
+  --target-branch "$TARGET_BRANCH" \
+  --title "Sync from source repository" \
+  --description "Automated sync via Copybara."
+```
+
+#### With Additional Options
+
+```bash
+az repos pr create \
+  --repository "$REPO" \
+  --source-branch "$SOURCE_BRANCH" \
+  --target-branch "$TARGET_BRANCH" \
+  --title "Sync from source repository" \
+  --description "Automated sync via Copybara." \
+  --reviewers "user1@company.com" "user2@company.com" \
+  --work-items 12345 \
+  --draft  # Create as draft PR
+```
+
+### Method 2: REST API with curl
+
+```bash
+#!/bin/bash
+set -e
+
+ORGANIZATION="myorg"
+PROJECT="myproject"
+REPO="myrepo"
+SOURCE_BRANCH="copybara/sync"
+TARGET_BRANCH="main"
+
+# Run Copybara
+java -jar copybara.jar migrate copy.bara.sky sync
+
+# Get repository ID
+REPO_ID=$(az repos show --repository "$REPO" --query id -o tsv)
+
+# Create PR via REST API
+curl -X POST \
+  -H "Authorization: Basic $(echo -n ":$AZURE_PAT" | base64)" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"sourceRefName\": \"refs/heads/$SOURCE_BRANCH\",
+    \"targetRefName\": \"refs/heads/$TARGET_BRANCH\",
+    \"title\": \"Sync from source repository\",
+    \"description\": \"Automated sync via Copybara.\"
+  }" \
+  "https://dev.azure.com/$ORGANIZATION/$PROJECT/_apis/git/repositories/$REPO_ID/pullrequests?api-version=7.0"
+```
+
+### Method 3: HTTP Endpoint (Advanced)
+
+Use Copybara's `http.endpoint()` for fully integrated PR creation:
+
+```starlark
+def _create_azure_pr(ctx):
+    """Create an Azure DevOps pull request."""
+    organization = "myorg"
+    project = "myproject"
+    repo = "myrepo"
+
+    response = ctx.destination.post(
+        url = "https://dev.azure.com/{}/{}/_apis/git/repositories/{}/pullrequests".format(
+            organization, project, repo
+        ),
+        headers = {"Content-Type": "application/json"},
+        params = {"api-version": "7.0"},
+        body = http.json({
+            "sourceRefName": "refs/heads/copybara/sync",
+            "targetRefName": "refs/heads/main",
+            "title": "Sync from source: " + ctx.refs[0].ref,
+            "description": "Automated sync via Copybara.\n\nSource: " + ctx.refs[0].url,
+        }),
+    )
+
+    if response.status_code == 201:
+        return ctx.success()
+    elif response.status_code == 409:
+        # PR already exists
+        ctx.console.info("Active PR already exists, skipping creation")
+        return ctx.success()
+    else:
+        return ctx.error("Failed to create PR: " + str(response.status_code))
+
+core.feedback(
+    name = "create_azure_pr",
+    origin = git.github_trigger(
+        url = "https://github.com/org/source-repo",
+        events = ["push"],
+    ),
+    destination = http.endpoint(
+        hosts = [
+            http.host(
+                host = "dev.azure.com",
+                auth = http.basic_auth(
+                    username = credentials.static_value(""),
+                    password = credentials.static_secret("azure_pat", "AZURE_PAT"),
+                ),
+            ),
+        ],
+    ),
+    actions = [core.action(impl = _create_azure_pr)],
+)
+```
+
+---
+
+## CI/CD Integration
+
+### GitHub Actions (Syncing to Azure)
+
+```yaml
+name: Sync to Azure DevOps
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Download Copybara
+        run: |
+          curl -fsSL -o copybara.jar \
+            https://github.com/google/copybara/releases/latest/download/copybara_deploy.jar
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run Copybara
+        env:
+          AZURE_PAT: ${{ secrets.AZURE_PAT }}
+        run: |
+          # Configure Azure credentials
+          echo "https://pat:$AZURE_PAT@dev.azure.com" >> ~/.git-credentials
+          git config --global credential.helper store
+
+          # Run Copybara
+          java -jar copybara.jar migrate copy.bara.sky sync --ignore-noop
+
+      - name: Create Azure PR
+        if: success()
+        env:
+          AZURE_DEVOPS_EXT_PAT: ${{ secrets.AZURE_PAT }}
+        run: |
+          # Install Azure CLI extension
+          az extension add --name azure-devops
+
+          # Configure defaults
+          az devops configure --defaults \
+            organization=${{ vars.AZURE_ORG }} \
+            project=${{ vars.AZURE_PROJECT }}
+
+          # Check if PR already exists
+          EXISTING_PR=$(az repos pr list \
+            --repository ${{ vars.AZURE_REPO }} \
+            --source-branch copybara/sync \
+            --status active \
+            --query "[0].pullRequestId" \
+            -o tsv)
+
+          if [ -z "$EXISTING_PR" ]; then
+            az repos pr create \
+              --repository ${{ vars.AZURE_REPO }} \
+              --source-branch copybara/sync \
+              --target-branch main \
+              --title "Sync from GitHub"
+          else
+            echo "PR #$EXISTING_PR already exists"
+          fi
+```
+
+### Azure Pipelines (Syncing from Azure)
+
+```yaml
+# azure-pipelines.yml
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: "ubuntu-latest"
+
+steps:
+  - checkout: self
+    fetchDepth: 0
+
+  - task: JavaToolInstaller@0
+    inputs:
+      versionSpec: "21"
+      jdkArchitectureOption: "x64"
+      jdkSourceOption: "PreInstalled"
+
+  - script: |
+      curl -fsSL -o copybara.jar \
+        https://github.com/google/copybara/releases/latest/download/copybara_deploy.jar
+    displayName: "Download Copybara"
+
+  - script: |
+      git config --global user.name "Azure Pipelines"
+      git config --global user.email "pipelines@azure.com"
+      echo "https://pat:$(DEST_PAT)@github.com" >> ~/.git-credentials
+      git config --global credential.helper store
+    displayName: "Configure Git"
+
+  - script: |
+      java -jar copybara.jar migrate copy.bara.sky sync --ignore-noop
+    displayName: "Run Copybara"
+    env:
+      DEST_PAT: $(GITHUB_PAT)
+```
+
+---
+
+## API Reference
+
+### Azure DevOps REST API
+
+**Base URL:** `https://dev.azure.com/{organization}/{project}/_apis`
+
+| Endpoint                                                 | Method | Description |
+| -------------------------------------------------------- | ------ | ----------- |
+| `/git/repositories/{repo}/pullrequests`                  | POST   | Create PR   |
+| `/git/repositories/{repo}/pullrequests`                  | GET    | List PRs    |
+| `/git/repositories/{repo}/pullrequests/{id}`             | GET    | Get PR      |
+| `/git/repositories/{repo}/pullrequests/{id}`             | PATCH  | Update PR   |
+| `/git/repositories/{repo}/pullrequests/{id}/completions` | POST   | Complete PR |
+
+**Authentication:** Basic auth with empty username and PAT as password
+
+**API Version:** Include `?api-version=7.0` on all requests
+
+**Documentation:** [Azure DevOps REST API](https://docs.microsoft.com/en-us/rest/api/azure/devops/git/)
+
+### Common API Patterns
+
+#### List Active PRs
+
+```bash
+curl -H "Authorization: Basic $(echo -n ":$AZURE_PAT" | base64)" \
+  "https://dev.azure.com/$ORG/$PROJECT/_apis/git/repositories/$REPO/pullrequests?searchCriteria.status=active&api-version=7.0"
+```
+
+#### Get PR by Source Branch
+
+```bash
+curl -H "Authorization: Basic $(echo -n ":$AZURE_PAT" | base64)" \
+  "https://dev.azure.com/$ORG/$PROJECT/_apis/git/repositories/$REPO/pullrequests?searchCriteria.sourceRefName=refs/heads/copybara/sync&api-version=7.0"
+```
+
+#### Add Reviewers to PR
+
+```bash
+curl -X PATCH \
+  -H "Authorization: Basic $(echo -n ":$AZURE_PAT" | base64)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reviewers": [
+      {"id": "user-guid-here"}
+    ]
+  }' \
+  "https://dev.azure.com/$ORG/$PROJECT/_apis/git/repositories/$REPO/pullrequests/$PR_ID?api-version=7.0"
+```
+
+---
+
+## Troubleshooting
+
+### Authentication Errors
+
+```
+TF401019: The Git repository with name or identifier ... does not exist
+```
+
+**Solutions:**
+
+- Verify PAT has `Code (Read & Write)` scope
+- Check organization and project names
+- Ensure repository name is correct (case-sensitive)
+
+### PR Creation Fails with 409
+
+```json
+{ "message": "An active pull request already exists" }
+```
+
+**Solutions:**
+
+- Query for existing PRs before creating
+- Update the existing PR instead
+- Use the wrapper script pattern that handles this case
+
+### Branch Not Found
+
+```json
+{ "message": "The source branch 'refs/heads/copybara/sync' does not exist" }
+```
+
+**Solutions:**
+
+- Verify Copybara pushed the branch successfully
+- Check branch name format (should include `refs/heads/` in API)
+- Ensure push completed before creating PR
+
+### TF400813: Resource Not Found
+
+```json
+{ "$id": "1", "innerException": null, "message": "TF400813: ..." }
+```
+
+**Solutions:**
+
+- Verify API URL format matches Azure DevOps structure
+- Include `api-version` parameter
+- Check project and repository exist
+
+## Next Steps
+
+- [Overview](/guides/unsupported-platforms/overview/) - All approaches compared
+- [Bitbucket](/guides/unsupported-platforms/bitbucket/) - Bitbucket Cloud and Server
+- [Gitea](/guides/unsupported-platforms/gitea/) - Gitea, Forgejo, Codeberg
+- [HTTP module](/reference/http/) - Build custom API integrations

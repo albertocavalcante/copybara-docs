@@ -1,0 +1,542 @@
+---
+title: Bitbucket Integration
+description: Using Copybara with Bitbucket Cloud and Bitbucket Server/Data Center
+---
+
+import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
+
+# Bitbucket Integration
+
+Bitbucket doesn't have first-class Copybara support, but you can integrate it using `git.origin()`, `git.destination()`, and additional tooling for PR creation.
+
+<Aside type="note">
+  This guide covers both **Bitbucket Cloud** (bitbucket.org) and **Bitbucket
+  Server/Data Center** (self-hosted). The APIs differ significantly between
+  them.
+</Aside>
+
+## Basic Setup
+
+### Reading from Bitbucket
+
+```starlark
+origin = git.origin(
+    url = "https://bitbucket.org/workspace/repo.git",
+    ref = "main",
+)
+```
+
+For SSH access:
+
+```starlark
+origin = git.origin(
+    url = "git@bitbucket.org:workspace/repo.git",
+    ref = "main",
+)
+```
+
+### Pushing to Bitbucket
+
+```starlark
+destination = git.destination(
+    url = "https://bitbucket.org/workspace/repo.git",
+    push = "main",
+)
+```
+
+### Complete Workflow
+
+```starlark
+core.workflow(
+    name = "sync",
+    origin = git.origin(
+        url = "https://github.com/org/source-repo.git",
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = "https://bitbucket.org/workspace/dest-repo.git",
+        push = "copybara/sync",  # Feature branch for PR
+    ),
+    authoring = authoring.overwrite("Sync Bot <sync@example.com>"),
+    transformations = [
+        metadata.squash_notes(),
+    ],
+    mode = "SQUASH",
+)
+```
+
+## Authentication
+
+### App Passwords (Cloud)
+
+Create an App Password in Bitbucket Cloud:
+
+1. Go to **Personal settings** → **App passwords**
+2. Create with permissions: `repository:write`, `pullrequest:write`
+3. Use in URL: `https://username:app_password@bitbucket.org/workspace/repo.git`
+
+```bash
+# Configure credentials
+git config --global credential.helper store
+echo "https://username:app_password@bitbucket.org" >> ~/.git-credentials
+```
+
+### Personal Access Tokens (Server/Data Center)
+
+For Bitbucket Server/Data Center:
+
+1. Go to **Profile** → **Manage account** → **Personal access tokens**
+2. Create token with `repository:write` permission
+3. Use as password with any username
+
+```bash
+echo "https://username:personal_token@bitbucket.company.com" >> ~/.git-credentials
+```
+
+---
+
+## Creating Pull Requests
+
+### Method 1: Using the CLI
+
+<Tabs>
+<TabItem label="Bitbucket Cloud">
+```bash
+#!/bin/bash
+# Requires: pip install atlassian-python-api
+
+# Run Copybara first
+
+java -jar copybara.jar migrate copy.bara.sky sync
+
+# Create PR using Python script
+
+python3 << 'EOF'
+from atlassian.bitbucket import Cloud
+
+bitbucket = Cloud(
+url="https://api.bitbucket.org",
+username="your-username",
+password="your-app-password"
+)
+
+workspace = bitbucket.workspaces.get("your-workspace")
+repo = workspace.repositories.get("your-repo")
+
+repo.pullrequests.create(
+title="Sync from source repository",
+source_branch="copybara/sync",
+destination_branch="main",
+description="Automated sync via Copybara"
+)
+EOF
+
+````
+</TabItem>
+<TabItem label="Bitbucket Server">
+```bash
+#!/bin/bash
+
+# Run Copybara first
+java -jar copybara.jar migrate copy.bara.sky sync
+
+# Create PR via REST API
+curl -X POST \
+  -H "Authorization: Bearer $BITBUCKET_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Sync from source repository",
+    "fromRef": {"id": "refs/heads/copybara/sync"},
+    "toRef": {"id": "refs/heads/main"}
+  }' \
+  "https://bitbucket.company.com/rest/api/1.0/projects/PROJ/repos/repo/pull-requests"
+````
+
+</TabItem>
+</Tabs>
+
+### Method 2: Using curl
+
+<Tabs>
+<TabItem label="Bitbucket Cloud">
+```bash
+#!/bin/bash
+set -e
+
+WORKSPACE="your-workspace"
+REPO="your-repo"
+SOURCE_BRANCH="copybara/sync"
+TARGET_BRANCH="main"
+
+# Run Copybara
+
+java -jar copybara.jar migrate copy.bara.sky sync
+
+# Check if branch exists
+
+if git ls-remote --exit-code origin "$SOURCE_BRANCH" >/dev/null 2>&1; then
+    # Create PR
+    curl -X POST \
+      -H "Authorization: Bearer $BITBUCKET_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "{
+        \"title\": \"Sync from source repository\",
+        \"source\": {
+          \"branch\": {\"name\": \"$SOURCE_BRANCH\"}
+},
+\"destination\": {
+\"branch\": {\"name\": \"$TARGET_BRANCH\"}
+        },
+        \"description\": \"Automated sync via Copybara.\n\nPlease review and merge.\"
+      }" \
+      "https://api.bitbucket.org/2.0/repositories/$WORKSPACE/$REPO/pullrequests"
+fi
+
+````
+</TabItem>
+<TabItem label="Bitbucket Server">
+```bash
+#!/bin/bash
+set -e
+
+PROJECT="PROJ"
+REPO="repo"
+SOURCE_BRANCH="copybara/sync"
+TARGET_BRANCH="main"
+BITBUCKET_URL="https://bitbucket.company.com"
+
+# Run Copybara
+java -jar copybara.jar migrate copy.bara.sky sync
+
+# Check if branch exists
+if git ls-remote --exit-code origin "$SOURCE_BRANCH" >/dev/null 2>&1; then
+    # Create PR
+    curl -X POST \
+      -H "Authorization: Bearer $BITBUCKET_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "{
+        \"title\": \"Sync from source repository\",
+        \"fromRef\": {
+          \"id\": \"refs/heads/$SOURCE_BRANCH\",
+          \"repository\": {
+            \"slug\": \"$REPO\",
+            \"project\": {\"key\": \"$PROJECT\"}
+          }
+        },
+        \"toRef\": {
+          \"id\": \"refs/heads/$TARGET_BRANCH\",
+          \"repository\": {
+            \"slug\": \"$REPO\",
+            \"project\": {\"key\": \"$PROJECT\"}
+          }
+        }
+      }" \
+      "$BITBUCKET_URL/rest/api/1.0/projects/$PROJECT/repos/$REPO/pull-requests"
+fi
+````
+
+</TabItem>
+</Tabs>
+
+### Method 3: HTTP Endpoint (Advanced)
+
+Use Copybara's `http.endpoint()` for fully integrated PR creation:
+
+<Tabs>
+<TabItem label="Bitbucket Cloud">
+```starlark
+def _create_bitbucket_pr(ctx):
+    """Create a Bitbucket Cloud pull request."""
+    workspace = "your-workspace"
+    repo = "your-repo"
+
+    response = ctx.destination.post(
+        url = "https://api.bitbucket.org/2.0/repositories/{}/{}/pullrequests".format(
+            workspace, repo
+        ),
+        headers = {"Content-Type": "application/json"},
+        body = http.json({
+            "title": "Sync from source: " + ctx.refs[0].ref,
+            "source": {"branch": {"name": "copybara/sync"}},
+            "destination": {"branch": {"name": "main"}},
+            "description": "Automated sync via Copybara.\n\nSource: " + ctx.refs[0].url,
+        }),
+    )
+
+    if response.status_code == 201:
+        return ctx.success()
+    elif response.status_code == 409:
+        # PR already exists
+        ctx.console.info("PR already exists, skipping creation")
+        return ctx.success()
+    else:
+        return ctx.error("Failed to create PR: " + str(response.status_code))
+
+core.feedback(
+name = "create_bitbucket_pr",
+origin = git.github_trigger(
+url = "https://github.com/org/source-repo",
+events = ["push"],
+),
+destination = http.endpoint(
+hosts = [
+http.host(
+host = "api.bitbucket.org",
+auth = http.bearer_auth(
+creds = credentials.static_secret("bb_token", "BITBUCKET_TOKEN"),
+),
+),
+],
+),
+actions = [core.action(impl = _create_bitbucket_pr)],
+)
+
+````
+</TabItem>
+<TabItem label="Bitbucket Server">
+```starlark
+def _create_bitbucket_server_pr(ctx):
+    """Create a Bitbucket Server pull request."""
+    project = "PROJ"
+    repo = "repo"
+    bitbucket_host = "bitbucket.company.com"
+
+    response = ctx.destination.post(
+        url = "https://{}/rest/api/1.0/projects/{}/repos/{}/pull-requests".format(
+            bitbucket_host, project, repo
+        ),
+        headers = {"Content-Type": "application/json"},
+        body = http.json({
+            "title": "Sync from source: " + ctx.refs[0].ref,
+            "fromRef": {
+                "id": "refs/heads/copybara/sync",
+                "repository": {
+                    "slug": repo,
+                    "project": {"key": project},
+                },
+            },
+            "toRef": {
+                "id": "refs/heads/main",
+                "repository": {
+                    "slug": repo,
+                    "project": {"key": project},
+                },
+            },
+        }),
+    )
+
+    if response.status_code == 201:
+        return ctx.success()
+    elif response.status_code == 409:
+        ctx.console.info("PR already exists, skipping creation")
+        return ctx.success()
+    else:
+        return ctx.error("Failed to create PR: " + str(response.status_code))
+
+core.feedback(
+    name = "create_bitbucket_pr",
+    origin = git.github_trigger(
+        url = "https://github.com/org/source-repo",
+        events = ["push"],
+    ),
+    destination = http.endpoint(
+        hosts = [
+            http.host(
+                host = "bitbucket.company.com",
+                auth = http.bearer_auth(
+                    creds = credentials.static_secret("bb_token", "BITBUCKET_SERVER_TOKEN"),
+                ),
+            ),
+        ],
+    ),
+    actions = [core.action(impl = _create_bitbucket_server_pr)],
+)
+````
+
+</TabItem>
+</Tabs>
+
+---
+
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+name: Sync to Bitbucket
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Download Copybara
+        run: |
+          curl -fsSL -o copybara.jar \
+            https://github.com/google/copybara/releases/latest/download/copybara_deploy.jar
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run Copybara
+        env:
+          BITBUCKET_USER: ${{ secrets.BITBUCKET_USER }}
+          BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
+        run: |
+          # Configure Bitbucket credentials
+          echo "https://$BITBUCKET_USER:$BITBUCKET_TOKEN@bitbucket.org" >> ~/.git-credentials
+          git config --global credential.helper store
+
+          # Run Copybara
+          java -jar copybara.jar migrate copy.bara.sky sync --ignore-noop
+
+      - name: Create Bitbucket PR
+        if: success()
+        env:
+          BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
+        run: |
+          # Check if PR already exists
+          EXISTING_PR=$(curl -s \
+            -H "Authorization: Bearer $BITBUCKET_TOKEN" \
+            "https://api.bitbucket.org/2.0/repositories/${{ vars.BB_WORKSPACE }}/${{ vars.BB_REPO }}/pullrequests?q=source.branch.name=\"copybara/sync\"" \
+            | jq '.size')
+
+          if [ "$EXISTING_PR" = "0" ]; then
+            curl -X POST \
+              -H "Authorization: Bearer $BITBUCKET_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "title": "Sync from GitHub",
+                "source": {"branch": {"name": "copybara/sync"}},
+                "destination": {"branch": {"name": "main"}}
+              }' \
+              "https://api.bitbucket.org/2.0/repositories/${{ vars.BB_WORKSPACE }}/${{ vars.BB_REPO }}/pullrequests"
+          else
+            echo "PR already exists, skipping creation"
+          fi
+```
+
+### Bitbucket Pipelines
+
+If your source is in Bitbucket and you're syncing to another repo:
+
+```yaml
+# bitbucket-pipelines.yml
+image: eclipse-temurin:21-jdk
+
+pipelines:
+  branches:
+    main:
+      - step:
+          name: Sync with Copybara
+          script:
+            - curl -fsSL -o copybara.jar https://github.com/google/copybara/releases/latest/download/copybara_deploy.jar
+            - git config --global user.name "Bitbucket Pipelines"
+            - git config --global user.email "pipelines@bitbucket.org"
+            - echo "https://x-access-token:$DEST_TOKEN@bitbucket.org" >> ~/.git-credentials
+            - git config --global credential.helper store
+            - java -jar copybara.jar migrate copy.bara.sky sync --ignore-noop
+```
+
+---
+
+## API Reference
+
+### Bitbucket Cloud API
+
+**Base URL:** `https://api.bitbucket.org/2.0`
+
+| Endpoint                                                   | Method | Description |
+| ---------------------------------------------------------- | ------ | ----------- |
+| `/repositories/{workspace}/{repo}/pullrequests`            | POST   | Create PR   |
+| `/repositories/{workspace}/{repo}/pullrequests`            | GET    | List PRs    |
+| `/repositories/{workspace}/{repo}/pullrequests/{id}`       | GET    | Get PR      |
+| `/repositories/{workspace}/{repo}/pullrequests/{id}`       | PUT    | Update PR   |
+| `/repositories/{workspace}/{repo}/pullrequests/{id}/merge` | POST   | Merge PR    |
+
+**Authentication:** Bearer token or Basic auth with App Password
+
+**Documentation:** [Bitbucket Cloud REST API](https://developer.atlassian.com/cloud/bitbucket/rest/)
+
+### Bitbucket Server API
+
+**Base URL:** `https://your-server.com/rest/api/1.0`
+
+| Endpoint                                                    | Method | Description |
+| ----------------------------------------------------------- | ------ | ----------- |
+| `/projects/{project}/repos/{repo}/pull-requests`            | POST   | Create PR   |
+| `/projects/{project}/repos/{repo}/pull-requests`            | GET    | List PRs    |
+| `/projects/{project}/repos/{repo}/pull-requests/{id}`       | GET    | Get PR      |
+| `/projects/{project}/repos/{repo}/pull-requests/{id}`       | PUT    | Update PR   |
+| `/projects/{project}/repos/{repo}/pull-requests/{id}/merge` | POST   | Merge PR    |
+
+**Authentication:** Bearer token with Personal Access Token
+
+**Documentation:** [Bitbucket Server REST API](https://docs.atlassian.com/bitbucket-server/rest/)
+
+---
+
+## Troubleshooting
+
+### Authentication Errors
+
+```
+fatal: Authentication failed for 'https://bitbucket.org/...'
+```
+
+**Solutions:**
+
+- Verify App Password has `repository:write` permission
+- Check username format (use Atlassian account email for Cloud)
+- Ensure token hasn't expired
+
+### PR Creation Fails with 400
+
+```json
+{ "error": { "message": "source branch not found" } }
+```
+
+**Solutions:**
+
+- Verify Copybara pushed the branch successfully
+- Check branch name matches exactly
+- Ensure fetch-depth: 0 in CI checkout
+
+### PR Already Exists (409)
+
+```json
+{
+  "error": {
+    "message": "Only one pull request may be open for a given source and target branch"
+  }
+}
+```
+
+**Solutions:**
+
+- Check for existing PRs before creating
+- Update the existing PR instead
+- Use the wrapper script pattern that handles this case
+
+## Next Steps
+
+- [Overview](/guides/unsupported-platforms/overview/) - All approaches compared
+- [Azure DevOps](/guides/unsupported-platforms/azure-devops/) - Azure Repos integration
+- [Gitea](/guides/unsupported-platforms/gitea/) - Gitea, Forgejo, Codeberg
+- [HTTP module](/reference/http/) - Build custom API integrations

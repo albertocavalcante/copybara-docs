@@ -74,6 +74,16 @@ export default defineConfig({
 						{ label: 'Hello World', slug: 'guides/hello-world' },
 						{ label: 'Open Source a Project', slug: 'guides/open-source-project' },
 						{ label: 'Sync Docs via PR', slug: 'guides/sync-docs-via-pr' },
+						{
+							label: 'Unsupported Platforms',
+							collapsed: true,
+							items: [
+								{ label: 'Overview', slug: 'guides/unsupported-platforms/overview' },
+								{ label: 'Bitbucket', slug: 'guides/unsupported-platforms/bitbucket' },
+								{ label: 'Azure DevOps', slug: 'guides/unsupported-platforms/azure-devops' },
+								{ label: 'Gitea & Friends', slug: 'guides/unsupported-platforms/gitea' },
+							],
+						},
 					],
 				},
 				{
