@@ -138,6 +138,7 @@ export default defineConfig({
 						{ label: 'Mirroring Repos', slug: 'use-cases/mirroring' },
 						{ label: 'Monorepo Extraction', slug: 'use-cases/monorepo' },
 						{ label: 'Documentation Sync', slug: 'use-cases/docs-sync' },
+						{ label: 'Advanced Patterns', slug: 'use-cases/advanced' },
 					],
 				},
 				{

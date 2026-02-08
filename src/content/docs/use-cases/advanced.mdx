@@ -1,0 +1,341 @@
+---
+title: Advanced Use Cases
+description: Complex synchronization patterns and multi-repository workflows
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Advanced patterns for complex synchronization scenarios.
+
+## Multi-Target Sync
+
+Sync one source to multiple destinations with different configurations.
+
+### Same Content, Multiple Destinations
+
+```starlark
+# Sync to GitHub and GitLab simultaneously
+def make_workflow(name, dest_url):
+    return core.workflow(
+        name = name,
+        origin = git.origin(
+            url = "https://internal.corp/repo",
+            ref = "main",
+        ),
+        destination = git.destination(
+            url = dest_url,
+            push = "main",
+        ),
+        origin_files = glob(["src/**", "docs/**"]),
+        authoring = authoring.pass_thru("Bot <bot@example.com>"),
+        transformations = [
+            metadata.add_header("Synced from internal"),
+        ],
+    )
+
+make_workflow("to-github", "https://github.com/org/repo")
+make_workflow("to-gitlab", "https://gitlab.com/org/repo")
+```
+
+Run both:
+
+```bash
+copybara migrate copy.bara.sky to-github
+copybara migrate copy.bara.sky to-gitlab
+```
+
+### Different Content Per Destination
+
+```starlark
+# Community edition vs Enterprise edition
+core.workflow(
+    name = "community",
+    origin = git.origin(url = "https://internal/repo", ref = "main"),
+    destination = git.destination(url = "https://github.com/org/community"),
+    origin_files = glob(
+        include = ["**"],
+        exclude = ["enterprise/**", "internal/**"],
+    ),
+    transformations = [
+        core.remove(glob(["**/*_enterprise.*"])),
+    ],
+)
+
+core.workflow(
+    name = "enterprise",
+    origin = git.origin(url = "https://internal/repo", ref = "main"),
+    destination = git.destination(url = "https://github.com/org/enterprise"),
+    origin_files = glob(["**"]),
+    # No exclusions - full content
+)
+```
+
+## Vendor Dependency Management
+
+Keep vendored dependencies in sync with upstream.
+
+### Basic Vendor Sync
+
+```starlark
+core.workflow(
+    name = "vendor-protobuf",
+    origin = git.origin(
+        url = "https://github.com/protocolbuffers/protobuf",
+        ref = "v3.21.0",  # Pin to specific version
+    ),
+    destination = git.destination(
+        url = "https://github.com/myorg/myrepo",
+        push = "main",
+    ),
+    origin_files = glob(["src/**"]),
+    destination_files = glob(["vendor/protobuf/**"]),
+    transformations = [
+        core.move("src", "vendor/protobuf"),
+        metadata.add_header("Vendor update: protobuf v3.21.0"),
+    ],
+)
+```
+
+### Multi-Vendor Management
+
+```starlark
+def vendor_dep(name, url, ref, src_path, include_patterns):
+    return core.workflow(
+        name = "vendor-" + name,
+        origin = git.origin(url = url, ref = ref),
+        destination = git.destination(
+            url = "https://github.com/myorg/myrepo",
+        ),
+        origin_files = glob(include_patterns),
+        destination_files = glob(["vendor/" + name + "/**"]),
+        transformations = [
+            core.move(src_path, "vendor/" + name),
+            metadata.replace_message(
+                "Vendor " + name + " @ " + ref + "\n\n" +
+                "Source: " + url + "\n" +
+                "Ref: " + ref
+            ),
+        ],
+    )
+
+vendor_dep(
+    name = "grpc",
+    url = "https://github.com/grpc/grpc",
+    ref = "v1.50.0",
+    src_path = "src/core",
+    include_patterns = ["src/core/**"],
+)
+
+vendor_dep(
+    name = "abseil",
+    url = "https://github.com/abseil/abseil-cpp",
+    ref = "20230125.0",
+    src_path = "absl",
+    include_patterns = ["absl/**"],
+)
+```
+
+### Vendor with Patches
+
+Apply local patches after vendoring:
+
+```starlark
+core.workflow(
+    name = "vendor-with-patches",
+    origin = git.origin(
+        url = "https://github.com/upstream/library",
+        ref = "v2.0.0",
+    ),
+    destination = git.destination(
+        url = "https://github.com/myorg/myrepo",
+    ),
+    destination_files = glob(["vendor/library/**", "patches/library/**"]),
+    transformations = [
+        core.move("", "vendor/library"),
+        patch.apply(series = "patches/library/series"),
+    ],
+)
+```
+
+## Gradual Rollout
+
+Deploy changes progressively across environments.
+
+### Canary to Stable Pipeline
+
+```starlark
+# Stage 1: Canary deployment
+core.workflow(
+    name = "deploy-canary",
+    origin = git.origin(
+        url = "https://github.com/org/app",
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = "https://github.com/org/app-deploy",
+        push = "canary",
+    ),
+    transformations = [
+        core.replace(
+            before = "ENVIRONMENT=production",
+            after = "ENVIRONMENT=canary",
+            paths = glob(["config/**"]),
+        ),
+        metadata.add_header("[CANARY] ${COPYBARA_CURRENT_MESSAGE}"),
+    ],
+)
+
+# Stage 2: Promote canary to stable (after validation)
+core.workflow(
+    name = "promote-stable",
+    origin = git.origin(
+        url = "https://github.com/org/app-deploy",
+        ref = "canary",
+    ),
+    destination = git.destination(
+        url = "https://github.com/org/app-deploy",
+        push = "stable",
+    ),
+    transformations = [
+        core.replace(
+            before = "ENVIRONMENT=canary",
+            after = "ENVIRONMENT=stable",
+            paths = glob(["config/**"]),
+        ),
+        metadata.replace_message("[STABLE] Promoted from canary"),
+    ],
+)
+```
+
+### Feature Flag Rollout
+
+```starlark
+def rollout_workflow(percentage):
+    return core.workflow(
+        name = "rollout-" + str(percentage),
+        origin = git.origin(url = "...", ref = "main"),
+        destination = git.destination(url = "...", push = "deploy"),
+        transformations = [
+            core.replace(
+                before = "ROLLOUT_PERCENTAGE=\\d+",
+                after = "ROLLOUT_PERCENTAGE=" + str(percentage),
+                regex_groups = {},
+                paths = glob(["config/rollout.yaml"]),
+            ),
+        ],
+    )
+
+rollout_workflow(10)   # 10% rollout
+rollout_workflow(50)   # 50% rollout
+rollout_workflow(100)  # Full rollout
+```
+
+## Cross-Organization Sync
+
+Sync between organizations with different authentication.
+
+### GitHub to GitLab (Different Orgs)
+
+```starlark
+core.workflow(
+    name = "github-to-gitlab",
+    origin = git.origin(
+        url = "https://github.com/org-a/repo",
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = "https://gitlab.com/org-b/repo",
+        push = "main",
+    ),
+    authoring = authoring.overwrite(
+        default = "Sync Bot <sync@org-b.com>",
+    ),
+    transformations = [
+        # Map authors between organizations
+        metadata.map_author({
+            "dev@org-a.com": "Dev User <dev@org-b.com>",
+        }),
+        # Update internal references
+        metadata.map_references(
+            before = "org-a/repo#${reference}",
+            after = "org-b/repo#${reference}",
+            regex_groups = {"before_ref": "[0-9]+"},
+        ),
+    ],
+)
+```
+
+### Credential Setup
+
+```bash
+# Store credentials for both platforms
+echo "https://x-access-token:${GITHUB_TOKEN}@github.com" >> ~/.git-credentials
+echo "https://oauth2:${GITLAB_TOKEN}@gitlab.com" >> ~/.git-credentials
+git config --global credential.helper store
+```
+
+### Bidirectional Cross-Org Sync
+
+```starlark
+# Shared configuration
+GITHUB_REPO = "https://github.com/org-a/shared"
+GITLAB_REPO = "https://gitlab.com/org-b/shared"
+
+core.workflow(
+    name = "github-to-gitlab",
+    origin = git.origin(url = GITHUB_REPO, ref = "main"),
+    destination = git.destination(url = GITLAB_REPO, push = "main"),
+    authoring = authoring.pass_thru("Sync <sync@example.com>"),
+    transformations = [
+        metadata.save_author("ORIGINAL_AUTHOR"),
+    ],
+)
+
+core.workflow(
+    name = "gitlab-to-github",
+    origin = git.origin(url = GITLAB_REPO, ref = "main"),
+    destination = git.destination(url = GITHUB_REPO, push = "main"),
+    authoring = authoring.pass_thru("Sync <sync@example.com>"),
+    transformations = [
+        metadata.restore_author("ORIGINAL_AUTHOR"),
+    ],
+)
+```
+
+<Aside type="caution">
+  Bidirectional sync requires careful state management to avoid sync loops. Use
+  distinct labels or branches to track sync direction.
+</Aside>
+
+## Fork Management
+
+Keep forks synchronized with upstream while preserving local changes.
+
+```starlark
+core.workflow(
+    name = "sync-upstream",
+    origin = git.origin(
+        url = "https://github.com/upstream/project",
+        ref = "main",
+    ),
+    destination = git.destination(
+        url = "https://github.com/myorg/project-fork",
+        push = "upstream-sync",
+    ),
+    destination_files = glob(
+        include = ["**"],
+        exclude = ["local/**", ".github/workflows/**"],
+    ),
+    transformations = [
+        metadata.add_header("Upstream sync: ${COPYBARA_REVISION}"),
+    ],
+)
+```
+
+Then merge `upstream-sync` into your main branch manually or via PR.
+
+## Next Steps
+
+- [Mirroring repos](/use-cases/mirroring/) - Simple mirroring
+- [Monorepo extraction](/use-cases/monorepo/) - Split large repos
+- [State management](/guides/state-management/) - Handle sync state
