@@ -165,9 +165,57 @@ glob(["src/**"])
 
 ## Performance Tips
 
-- Be as specific as possible with include patterns
-- Exclude large directories you don't need (e.g., `node_modules`, `.git`)
-- Prefer `["src/**"]` over `["**"]` + exclude when possible
+Copybara calculates "roots" from your glob patterns to determine which directories to query from the repository. More specific patterns = fewer files traversed.
+
+### Use Specific Paths Over Wildcards
+
+```starlark
+# SLOWER: Scans entire repo, then filters
+glob(
+    include = ["**"],
+    exclude = ["vendor/**", "node_modules/**", "dist/**"],
+)
+
+# FASTER: Only queries src/ and docs/ directories
+glob(["src/**", "docs/**"])
+```
+
+### Understand Root Calculation
+
+Copybara extracts the static prefix before any wildcard to determine query roots:
+
+| Pattern        | Computed Root |
+| -------------- | ------------- |
+| `src/**/*.py`  | `src`         |
+| `foo/bar.txt`  | `foo`         |
+| `**/*.java`    | `` (root)     |
+| `{foo,bar}/**` | `` (root)     |
+
+Patterns with wildcards at the start (like `**/*.java`) force a full repo scan.
+
+### Compose Globs with Operators
+
+Use `+` and `-` operators to build complex patterns efficiently:
+
+```starlark
+base = glob(["src/**"])
+tests = glob(["src/**/*_test.py", "src/**/test_*.py"])
+
+# All source files except tests
+origin_files = base - tests
+```
+
+### Avoid Deeply Nested Excludes
+
+Each level of glob nesting adds processing overhead:
+
+```starlark
+# Simple and fast
+glob(include = ["src/**"], exclude = ["src/internal/**"])
+
+# More complex - avoid if not needed
+(glob(["src/**"]) - glob(["src/internal/**"])) + glob(["docs/**"])
+```
 
 ## Next Steps
 
