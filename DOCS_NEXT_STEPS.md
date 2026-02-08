@@ -20,6 +20,8 @@ Living document tracking documentation improvements. Updated as work progresses.
 - [x] **Advanced Use Cases** - multi-target, vendor, rollout, cross-org
 - [x] **Module Index** - Quick reference tables in reference/index.mdx
 - [x] **Community Resources** - Blog posts, company examples, production configs
+- [x] **FAQ Page** - 20+ questions with links to original threads/issues
+- [x] **Syntax Highlighting** - .gitattributes trick for GitHub
 
 ### Previous Session
 
@@ -112,9 +114,11 @@ Based on community research, consider adding:
 
 | Metric          | Count |
 | --------------- | ----- |
-| Total pages     | 70    |
+| Total pages     | 72    |
 | Reference pages | 18    |
-| Guide pages     | 8     |
+| Guide pages     | 9     |
+| Config pages    | 5     |
+| Troubleshooting | 3     |
 | Use case pages  | 6     |
 
 Last updated: Current session
