@@ -177,6 +177,62 @@ destination = git.gerrit_destination(
 )
 ```
 
+## git.gitlab_mr_destination
+
+<Aside type="caution" title="Experimental">
+  GitLab MR destination support is experimental and the API may change.
+</Aside>
+
+Create GitLab merge requests:
+
+```starlark
+destination = git.gitlab_mr_destination(
+    url = "https://gitlab.com/org/project",
+    credentials = credentials.username_password(
+        credentials.static_value("oauth2"),
+        credentials.static_secret("gitlab_token", "GITLAB_TOKEN"),
+    ),
+    target_branch = "main",
+)
+```
+
+### Parameters
+
+| Parameter       | Required | Description                |
+| --------------- | -------- | -------------------------- |
+| `url`           | Yes      | GitLab repository URL      |
+| `credentials`   | Yes      | Authentication credentials |
+| `target_branch` | Yes      | Target branch for the MR   |
+| `source_branch` | No       | Branch name for the MR     |
+| `title`         | No       | MR title template          |
+| `body`          | No       | MR description template    |
+| `assignees`     | No       | GitLab usernames to assign |
+
+### Example
+
+```starlark
+destination = git.gitlab_mr_destination(
+    url = "https://gitlab.com/org/project",
+    credentials = credentials.username_password(
+        credentials.static_value("oauth2"),
+        credentials.static_secret("gitlab_token", "GITLAB_TOKEN"),
+    ),
+    target_branch = "main",
+    source_branch = "copybara/sync-${CONTEXT_REFERENCE}",
+    title = "Sync from internal: ${CONTEXT_REFERENCE}",
+    body = """\
+## Automated Sync
+
+This MR was created by Copybara.
+
+Source: ${CONTEXT_REFERENCE}
+""",
+    assignees = ["maintainer"],
+)
+```
+
+See [GitLab Integration](/endpoints/gitlab/) for complete documentation.
+
 ## Fetch vs Push
 
 The `fetch` and `push` parameters serve different purposes:
@@ -250,6 +306,8 @@ ssh-add ~/.ssh/id_ed25519
 
 ## Next Steps
 
-- [GitHub integration details](/endpoints/github/)
+- [GitHub integration](/endpoints/github/)
+- [GitLab integration](/endpoints/gitlab/)
+- [Gerrit integration](/endpoints/gerrit/)
 - [CHANGE_REQUEST mode](/workflows/change-request/)
 - [Authentication guide](/cicd/authentication/)

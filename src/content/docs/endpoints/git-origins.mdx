@@ -167,6 +167,75 @@ origin = git.gerrit_origin(
 | `ref`               | Reference to sync       |
 | `change_number_url` | URL pattern for changes |
 
+## git.gitlab_origin
+
+<Aside type="caution" title="Experimental">
+  GitLab origin support is experimental and the API may change.
+</Aside>
+
+Read from GitLab repositories:
+
+```starlark
+origin = git.gitlab_origin(
+    url = "https://gitlab.com/org/project",
+    ref = "main",
+)
+```
+
+### Parameters
+
+| Parameter             | Description                                  |
+| --------------------- | -------------------------------------------- |
+| `url`                 | GitLab repository URL                        |
+| `ref`                 | Branch or tag to sync                        |
+| `submodules`          | Submodule handling: `NO`, `YES`, `RECURSIVE` |
+| `excluded_submodules` | Submodule names to exclude                   |
+| `first_parent`        | Only follow first parent in merges           |
+| `partial_fetch`       | Enable partial clone                         |
+
+See [GitLab Integration](/endpoints/gitlab/) for complete documentation.
+
+## git.gitlab_mr_origin
+
+<Aside type="caution" title="Experimental">
+  GitLab MR origin support is experimental and the API may change.
+</Aside>
+
+Read from GitLab Merge Requests:
+
+```starlark
+origin = git.gitlab_mr_origin(
+    url = "https://gitlab.com/org/project",
+    credentials = credentials.username_password(
+        credentials.static_value("oauth2"),
+        credentials.static_secret("gitlab_token", "GITLAB_TOKEN"),
+    ),
+)
+```
+
+### Parameters
+
+| Parameter             | Description                                  |
+| --------------------- | -------------------------------------------- |
+| `url`                 | GitLab repository URL                        |
+| `credentials`         | Authentication credentials                   |
+| `use_merge_commit`    | Use GitLab's merge commit instead of MR head |
+| `submodules`          | Submodule handling                           |
+| `excluded_submodules` | Submodule names to exclude                   |
+
+### Available Labels
+
+When using `git.gitlab_mr_origin`, these labels are available:
+
+| Label                    | Description                  |
+| ------------------------ | ---------------------------- |
+| `GITLAB_MR_TITLE`        | MR title                     |
+| `GITLAB_MR_URL`          | Web URL of the MR            |
+| `GITLAB_MR_DESCRIPTION`  | MR description/body          |
+| `GITLAB_BASE_BRANCH_REF` | Reference to the base branch |
+
+See [GitLab Integration](/endpoints/gitlab/) for complete documentation.
+
 ## Submodule Handling
 
 Control how submodules are processed:
@@ -216,3 +285,6 @@ origin = git.origin(url = ..., ref = "abc123def456")
 
 - [Git destinations](/endpoints/git-destinations/)
 - [GitHub integration](/endpoints/github/)
+- [GitLab integration](/endpoints/gitlab/)
+- [Gerrit integration](/endpoints/gerrit/)
+- [Remote files origin](/reference/remotefiles/) - Non-Git sources
