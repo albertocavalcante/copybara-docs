@@ -1,0 +1,179 @@
+---
+title: Patch Module
+description: Reference for applying patch files
+---
+
+Transformations for applying patch files to the working directory.
+
+## patch.apply
+
+Applies one or more patch files. Patches that reference non-existent paths are ignored.
+
+```starlark
+patch.apply(
+    patches = ["patches/fix-build.patch", "patches/update-deps.patch"],
+    strip = 1,
+)
+```
+
+### Parameters
+
+| Parameter              | Type           | Description                                        |
+| ---------------------- | -------------- | -------------------------------------------------- |
+| `patches`              | `list[string]` | Patch files relative to config file                |
+| `excluded_patch_paths` | `list[string]` | Paths to exclude from patches                      |
+| `series`               | `string`       | File containing list of patches to apply           |
+| `strip`                | `int`          | Path components to strip (`-p` flag). Default: `1` |
+| `directory`            | `string`       | Directory to apply patches from (`-d` flag)        |
+
+### Using a Series File
+
+A series file lists patches one per line:
+
+```text title="patches/series"
+# Comments start with #
+001-fix-typo.patch
+002-add-feature.patch
+003-update-api.patch  # inline comments work too
+```
+
+```starlark
+patch.apply(series = "patches/series")
+```
+
+Generate a series file with:
+
+```bash
+find . -name "*.patch" | sort > patches/series
+```
+
+### Combining Patches and Series
+
+When both are specified, `patches` are applied first:
+
+```starlark
+patch.apply(
+    patches = ["urgent-fix.patch"],
+    series = "patches/series",
+)
+```
+
+### Excluding Paths
+
+Skip specific files within patches:
+
+```starlark
+patch.apply(
+    patches = ["upstream.patch"],
+    excluded_patch_paths = ["Makefile", "configure.ac"],
+)
+```
+
+When `excluded_patch_paths` is non-empty, Copybara uses `git apply` instead of GNU patch.
+
+### Custom Strip Level
+
+```starlark
+# Patch has paths like a/src/file.c, b/src/file.c
+patch.apply(
+    patches = ["changes.patch"],
+    strip = 1,  # Removes 'a/' and 'b/' prefixes
+)
+
+# Patch has full paths like /home/user/project/src/file.c
+patch.apply(
+    patches = ["absolute.patch"],
+    strip = 0,  # Keep full paths
+)
+```
+
+### Applying to Subdirectory
+
+```starlark
+patch.apply(
+    patches = ["component.patch"],
+    directory = "src/components",
+)
+```
+
+## patch.quilt_apply
+
+Applies patches using Quilt, which supports automatic patch updating when applied with fuzz.
+
+```starlark
+patch.quilt_apply(series = "patches/series")
+```
+
+### How It Works
+
+Copybara runs `quilt import`, `quilt push`, and `quilt refresh` for each patch. This means patches can be automatically updated if they apply with minor offsets.
+
+### Requirements
+
+- All patches and the series file must be in a `patches/` subdirectory
+- The `patches/` directory must be at the root of the migrated code
+- The migrated code cannot contain its own `patches/` directory
+
+### Example Directory Structure
+
+```text
+source_root/
+├── BUILD
+├── copy.bara.sky
+├── migrated_file1
+├── migrated_file2
+└── patches/
+    ├── series
+    └── patch1.patch
+```
+
+### Workflow Configuration
+
+```starlark
+core.workflow(
+    name = "sync",
+    origin = git.origin(
+        url = "https://github.com/upstream/project",
+    ),
+    destination = git.destination(
+        url = "https://github.com/myorg/fork",
+    ),
+    transformations = [
+        patch.quilt_apply(series = "patches/series"),
+        core.move("", "source_root"),
+    ],
+    destination_files = glob(["source_root/**"]),
+)
+```
+
+Include `patches/**` in `destination_files` to have patches updated during migration.
+
+## Use Cases
+
+### Maintaining Local Patches
+
+Keep local modifications when syncing from upstream:
+
+```starlark
+core.workflow(
+    name = "import",
+    origin = git.origin(url = "https://upstream/repo"),
+    destination = git.destination(url = "https://myorg/repo"),
+    transformations = [
+        patch.apply(series = "patches/series"),
+    ],
+    destination_files = glob(["**"], exclude = ["patches/**"]),
+)
+```
+
+### Conditional Patches
+
+Apply different patches based on workflow:
+
+```starlark
+def patches_for_env(env):
+    base = ["patches/common.patch"]
+    if env == "prod":
+        return base + ["patches/prod-config.patch"]
+    return base + ["patches/dev-config.patch"]
+```

@@ -1,0 +1,259 @@
+---
+title: Buildozer Module
+description: Reference for modifying Bazel BUILD files
+---
+
+Transformations for creating, modifying, and deleting Bazel BUILD targets using [Buildozer](https://github.com/bazelbuild/buildtools/tree/master/buildozer).
+
+## buildozer.modify
+
+Runs Buildozer commands against one or more targets.
+
+```starlark
+buildozer.modify(
+    target = "foo/bar:lib",
+    commands = [
+        buildozer.cmd("add deps :utils"),
+        buildozer.cmd("set visibility //..."),
+    ],
+)
+```
+
+### Parameters
+
+| Parameter  | Type                       | Description                    |
+| ---------- | -------------------------- | ------------------------------ |
+| `target`   | `string` or `list[string]` | Target expression(s) to modify |
+| `commands` | `list[string\|cmd]`        | Commands to apply              |
+
+### Target Expressions
+
+```starlark
+# Single target
+target = "foo/bar:baz"
+
+# All targets in a package
+target = "foo/bar:all"
+
+# Multiple targets
+target = ["foo/bar:lib", "foo/bar:test"]
+
+# Root BUILD file
+target = ".:main"
+```
+
+### Example: Add Dependency
+
+```starlark
+buildozer.modify(
+    target = "foo/bar:baz",
+    commands = [
+        buildozer.cmd("set config \":foo\""),
+    ],
+)
+```
+
+### Example: Multiple Targets
+
+```starlark
+buildozer.modify(
+    target = ["foo/bar:baz", "foo/bar:fooz"],
+    commands = [
+        buildozer.cmd("set config \":foo\""),
+    ],
+)
+```
+
+## buildozer.create
+
+Creates a new BUILD target.
+
+```starlark
+buildozer.create(
+    target = "pkg:new_lib",
+    rule_type = "java_library",
+    commands = [
+        "set srcs [\"Foo.java\", \"Bar.java\"]",
+        "add deps :utils",
+    ],
+)
+```
+
+### Parameters
+
+| Parameter   | Type     | Description                        |
+| ----------- | -------- | ---------------------------------- |
+| `target`    | `string` | Target to create (e.g., `foo:bar`) |
+| `rule_type` | `string` | Rule type (e.g., `java_library`)   |
+| `commands`  | `list`   | Commands to populate attributes    |
+| `before`    | `string` | Create before this target          |
+| `after`     | `string` | Create after this target           |
+
+### Positioning
+
+Control where the new target appears:
+
+```starlark
+buildozer.create(
+    target = "pkg:new_test",
+    rule_type = "java_test",
+    after = "pkg:lib",  # Place after existing lib target
+    commands = ["set srcs [\"Test.java\"]"],
+)
+```
+
+This transformation reverses to delete the target.
+
+## buildozer.delete
+
+Deletes a BUILD target.
+
+```starlark
+buildozer.delete(target = "pkg:old_lib")
+```
+
+### Parameters
+
+| Parameter           | Type     | Description                           |
+| ------------------- | -------- | ------------------------------------- |
+| `target`            | `string` | Target to delete                      |
+| `rule_type`         | `string` | Rule type (makes deletion reversible) |
+| `recreate_commands` | `list`   | Commands to recreate (for reversal)   |
+| `before`            | `string` | Position hint for reversal            |
+| `after`             | `string` | Position hint for reversal            |
+
+### Reversible Delete
+
+Provide `rule_type` to make the deletion reversible:
+
+```starlark
+buildozer.delete(
+    target = "pkg:deprecated_lib",
+    rule_type = "java_library",
+    recreate_commands = [
+        "set srcs [\"Old.java\"]",
+        "add deps :legacy",
+    ],
+)
+```
+
+## buildozer.cmd
+
+Creates a Buildozer command, optionally with a custom reversal.
+
+```starlark
+buildozer.cmd(
+    forward = "add deps :new_dep",
+    reverse = "remove deps :new_dep",
+)
+```
+
+### Parameters
+
+| Parameter | Type     | Description              |
+| --------- | -------- | ------------------------ |
+| `forward` | `string` | The command to run       |
+| `reverse` | `string` | Optional reverse command |
+
+### Auto-Reversible Commands
+
+These commands reverse automatically:
+
+- `add` ↔ `remove`
+- `remove` (element from list) ↔ `add`
+- `replace` ↔ `replace` (swapped args)
+
+```starlark
+# No reverse needed - auto-reverses
+buildozer.cmd("add deps :foo")
+
+# Custom reverse for non-reversible commands
+buildozer.cmd(
+    forward = "set visibility //...",
+    reverse = "set visibility //pkg:__subpackages__",
+)
+```
+
+## buildozer.print
+
+Reads an attribute value from a target. Use in custom transformations.
+
+```starlark
+def _check_deps(ctx):
+    deps = buildozer.print(
+        ctx = ctx,
+        attr = "deps",
+        target = "pkg:lib",
+    )
+    if ":banned_dep" in deps:
+        ctx.console.error("Found banned dependency!")
+```
+
+### Parameters
+
+| Parameter | Type            | Description                |
+| --------- | --------------- | -------------------------- |
+| `ctx`     | `TransformWork` | The transformation context |
+| `attr`    | `string`        | Attribute to read          |
+| `target`  | `string`        | Target to read from        |
+
+## buildozer.batch
+
+Combines multiple Buildozer transformations into a single batch for efficiency.
+
+```starlark
+buildozer.batch(
+    transforms = [
+        buildozer.modify(target = "a:lib", commands = ["add deps :x"]),
+        buildozer.modify(target = "b:lib", commands = ["add deps :y"]),
+        buildozer.create(target = "c:new", rule_type = "cc_library"),
+    ],
+)
+```
+
+## Common Commands
+
+Buildozer supports many commands. Here are the most useful:
+
+| Command   | Example                    | Description           |
+| --------- | -------------------------- | --------------------- |
+| `add`     | `add deps :foo`            | Add to list attribute |
+| `remove`  | `remove deps :bar`         | Remove from list      |
+| `set`     | `set visibility ["//..."]` | Set attribute value   |
+| `rename`  | `rename old_attr new_attr` | Rename attribute      |
+| `delete`  | `delete testonly`          | Remove attribute      |
+| `replace` | `replace deps :old :new`   | Replace in list       |
+| `move`    | `move srcs hdrs *.h`       | Move between lists    |
+
+See the [Buildozer documentation](https://github.com/bazelbuild/buildtools/tree/master/buildozer) for the complete command reference.
+
+## Use Cases
+
+### Migrating Dependencies
+
+Update imports when moving code between repositories:
+
+```starlark
+transformations = [
+    buildozer.modify(
+        target = "//...:all",
+        commands = [
+            buildozer.cmd("replace deps @old_repo//lib @new_repo//lib"),
+        ],
+    ),
+]
+```
+
+### Standardizing Build Rules
+
+Enforce consistent settings across targets:
+
+```starlark
+buildozer.modify(
+    target = ["//src/...:all"],
+    commands = [
+        "set testonly False",
+        "add tags [\"team:platform\"]",
+    ],
+)
+```

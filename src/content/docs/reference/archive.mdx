@@ -1,0 +1,110 @@
+---
+title: Archive Module
+description: Reference for working with compressed archives
+---
+
+Functions for creating and extracting archive files.
+
+## archive.extract
+
+Extracts contents from an archive file.
+
+```starlark
+archive.extract(
+    archive = ctx.path("deps/library.tar.gz"),
+    type = "AUTO",
+    destination_folder = ctx.path("vendor/library"),
+    paths = glob(["src/**"]),
+)
+```
+
+### Parameters
+
+| Parameter            | Type     | Description                                                              |
+| -------------------- | -------- | ------------------------------------------------------------------------ |
+| `archive`            | `path`   | Path to the archive file                                                 |
+| `type`               | `string` | Archive type: `AUTO`, `JAR`, `ZIP`, `TAR`, `TAR_GZ`, `TAR_XZ`, `TAR_BZ2` |
+| `destination_folder` | `path`   | Where to extract (defaults to archive's directory)                       |
+| `paths`              | `glob`   | Optional filter for which files to extract                               |
+
+### Supported Formats
+
+| Extension         | Type    |
+| ----------------- | ------- |
+| `.zip`            | ZIP     |
+| `.jar`            | JAR     |
+| `.tar`            | TAR     |
+| `.tgz`, `.tar.gz` | TAR_GZ  |
+| `.tar.xz`         | TAR_XZ  |
+| `.tar.bz2`        | TAR_BZ2 |
+
+## archive.create
+
+Creates an archive from files in the working directory.
+
+```starlark
+archive.create(
+    archive = ctx.path("output/release.tar.gz"),
+    files = glob(["dist/**", "README.md"]),
+)
+```
+
+### Parameters
+
+| Parameter | Type   | Description                              |
+| --------- | ------ | ---------------------------------------- |
+| `archive` | `path` | Output path for the archive              |
+| `files`   | `glob` | Files to include (defaults to all files) |
+
+The archive type is inferred from the file extension.
+
+## Use Cases
+
+### Vendor Dependencies
+
+Extract a third-party library during transformation:
+
+```starlark
+def _extract_deps(ctx):
+    archive.extract(
+        archive = ctx.path("third_party/protobuf.tar.gz"),
+        destination_folder = ctx.path("third_party/protobuf"),
+    )
+    # Remove the archive after extraction
+    ctx.remove(glob(["third_party/*.tar.gz"]))
+```
+
+### Package Artifacts
+
+Create a distributable archive:
+
+```starlark
+def _create_release(ctx):
+    archive.create(
+        archive = ctx.path("release.zip"),
+        files = glob([
+            "bin/**",
+            "lib/**",
+            "LICENSE",
+            "README.md",
+        ]),
+    )
+```
+
+### Selective Extraction
+
+Extract only specific files from a large archive:
+
+```starlark
+archive.extract(
+    archive = ctx.path("sdk.zip"),
+    paths = glob(["headers/**/*.h", "lib/*.a"]),
+    destination_folder = ctx.path("vendor/sdk"),
+)
+```
+
+## Notes
+
+- The `AUTO` type detection relies on file extensions
+- Original file paths are preserved when creating archives
+- Extraction creates directories as needed
