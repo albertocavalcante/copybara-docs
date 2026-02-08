@@ -27,13 +27,13 @@ transformations = [
 
 ## Transformation Types
 
-| Category             | Transformations                                      |
-| -------------------- | ---------------------------------------------------- |
-| **File operations**  | `core.move`, `core.copy`, `core.remove`              |
-| **Text replacement** | `core.replace`, `core.filter_replace`                |
-| **Verification**     | `core.verify_match`                                  |
-| **Metadata**         | `metadata.squash_notes`, `metadata.add_header`, etc. |
-| **Custom**           | `core.transform` with reversal                       |
+| Category             | Transformations                                            |
+| -------------------- | ---------------------------------------------------------- |
+| **File operations**  | `core.move`, `core.copy`, `core.remove`, `core.rename`     |
+| **Text replacement** | `core.replace`, `core.filter_replace`, `core.todo_replace` |
+| **Verification**     | `core.verify_match`                                        |
+| **Metadata**         | `metadata.squash_notes`, `metadata.add_header`, etc.       |
+| **Custom**           | `core.transform` with reversal                             |
 
 ## Quick Reference
 
@@ -100,6 +100,53 @@ metadata.squash_notes(
 # Add header to commit
 metadata.add_header("Synced-From: internal")
 ```
+
+### Renaming Files
+
+```starlark
+# Rename file suffix
+core.rename(
+    before = ".internal.js",
+    after = ".js",
+)
+
+# Rename specific files
+core.rename(
+    before = "config.internal.yaml",
+    after = "config.yaml",
+)
+```
+
+### TODO Replacement
+
+Replace or scrub Google-style TODOs like `TODO(username)`:
+
+```starlark
+# Map internal usernames to external
+core.todo_replace(
+    mapping = {
+        "internal_user1": "external_user1",
+        "internal_user2": "external_user2",
+    },
+)
+
+# Scrub all names from TODOs: TODO(name) → TODO
+core.todo_replace(
+    mode = "SCRUB_NAMES",
+)
+
+# Replace all TODOs with a default
+core.todo_replace(
+    mode = "USE_DEFAULT",
+    default = "nicetomeetyou",
+)
+```
+
+<Aside type="tip">
+  `core.todo_replace()` is essential for open-sourcing code. It handles
+  `TODO(user)` and `NOTE(user)` comments, mapping internal usernames to external
+  ones or removing them entirely.
+</Aside>
 
 ## Order Matters
 
@@ -174,6 +221,16 @@ transformations = [
 
     # Replace internal URLs
     core.replace("internal.corp.com", "api.example.com"),
+
+    # Map internal usernames in TODOs to external
+    core.todo_replace(
+        mapping = {
+            "alice": "alice-oss",
+            "bob": "bob-oss",
+        },
+        mode = "MAP_OR_DEFAULT",
+        default = "nicetomeetyou",
+    ),
 
     # Remove internal comments
     core.replace(

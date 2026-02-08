@@ -80,6 +80,80 @@ core.remove(
 )
 ```
 
+### core.rename
+
+Rename files (simplified version of `core.move` for renaming):
+
+```starlark
+core.rename(
+    before = ".internal.js",            # Filepath or suffix to change
+    after = ".js",                      # Replacement filepath or suffix
+    paths = glob(["**"]),               # Optional: file filter
+    overwrite = False,                  # Optional: overwrite existing
+)
+```
+
+Note: `core.rename` only renames regular files, not directories.
+
+### core.todo_replace
+
+Replace Google-style TODOs like `TODO(username)` or `NOTE(user1, user2)`:
+
+```starlark
+core.todo_replace(
+    tags = ["TODO", "NOTE"],            # Tags to look for (default)
+    mapping = {"user1": "newuser1"},    # Username mapping
+    mode = "MAP_OR_IGNORE",             # How to handle unmapped users
+    paths = glob(["**"]),               # Optional: file filter
+    default = None,                     # Default value for MAP_OR_DEFAULT/USE_DEFAULT
+    ignore = None,                      # Regex pattern to ignore
+)
+```
+
+**Modes:**
+
+| Mode             | Description                                             |
+| ---------------- | ------------------------------------------------------- |
+| `MAP_OR_FAIL`    | Use mapping, fail if user not found                     |
+| `MAP_OR_IGNORE`  | Use mapping, keep original if not found (default)       |
+| `MAP_OR_DEFAULT` | Use mapping, use `default` if not found                 |
+| `SCRUB_NAMES`    | Remove all names: `TODO(foo)` → `TODO`                  |
+| `USE_DEFAULT`    | Replace all with default: `TODO(foo)` → `TODO(default)` |
+
+**Example - Scrub names for open sourcing:**
+
+```starlark
+core.todo_replace(
+    mode = "SCRUB_NAMES",
+)
+# TODO(alice, bob): Fix this → TODO: Fix this
+```
+
+**Example - Map to external usernames:**
+
+```starlark
+core.todo_replace(
+    mapping = {
+        "alice": "alice-github",
+        "bob": "bob-github",
+    },
+    mode = "MAP_OR_DEFAULT",
+    default = "nicetomeetyou",
+)
+# TODO(alice): Fix → TODO(alice-github): Fix
+# TODO(unknown): Fix → TODO(nicetomeetyou): Fix
+```
+
+**Example - Ignore certain patterns:**
+
+```starlark
+core.todo_replace(
+    mapping = {"alice": "external"},
+    ignore = "b/[0-9]+",  # Ignore bug references like b/123456
+)
+# TODO(b/123456, alice): Fix → TODO(b/123456, external): Fix
+```
+
 ### core.replace
 
 Text replacement:
