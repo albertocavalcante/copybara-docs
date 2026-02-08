@@ -1,0 +1,116 @@
+---
+title: Module Index
+description: Quick reference for all Copybara modules and functions
+---
+
+Overview of all Copybara modules with their primary functions.
+
+## Core Modules
+
+| Module                             | Key Functions                                                | Description                        |
+| ---------------------------------- | ------------------------------------------------------------ | ---------------------------------- |
+| [core](/reference/core/)           | `workflow`, `move`, `replace`, `remove`, `copy`              | Workflows and file transformations |
+| [git](/reference/git/)             | `origin`, `destination`, `github_origin`, `github_pr_origin` | Git endpoints and operations       |
+| [metadata](/reference/metadata/)   | `squash_notes`, `scrubber`, `map_author`, `expose_label`     | Commit message transformations     |
+| [authoring](/reference/authoring/) | `pass_thru`, `overwrite`, `allowed`                          | Author handling modes              |
+
+## File & Archive Modules
+
+| Module                         | Key Functions            | Description              |
+| ------------------------------ | ------------------------ | ------------------------ |
+| [glob](/reference/glob/)       | `glob(include, exclude)` | File pattern matching    |
+| [archive](/reference/archive/) | `create`, `extract`      | ZIP, TAR, JAR operations |
+| [patch](/reference/patch/)     | `apply`, `quilt_apply`   | Apply patch files        |
+
+## Build System Modules
+
+| Module                                        | Key Functions                       | Description              |
+| --------------------------------------------- | ----------------------------------- | ------------------------ |
+| [buildozer](/reference/buildozer/)            | `create`, `delete`, `modify`, `cmd` | Bazel BUILD manipulation |
+| [go](/reference/go/)                          | Go-specific operations              | Go module handling       |
+| [rust](/reference/rust/)                      | Rust-specific operations            | Cargo/crate handling     |
+| [python](/reference/utilities/#python-module) | `parse_metadata`                    | PyPI metadata parsing    |
+
+## Data Format Modules
+
+| Module                                    | Key Functions  | Description            |
+| ----------------------------------------- | -------------- | ---------------------- |
+| [format](/reference/format/)              | `buildifier`   | Code formatting        |
+| [toml](/reference/toml/)                  | TOML parsing   | Config file handling   |
+| [xml](/reference/xml/)                    | XML operations | XML transformations    |
+| [html](/reference/utilities/#html-module) | `xpath`        | HTML element selection |
+
+## Network & Remote Modules
+
+| Module                                 | Key Functions        | Description           |
+| -------------------------------------- | -------------------- | --------------------- |
+| [http](/reference/http/)               | HTTP operations      | API interactions      |
+| [remotefiles](/reference/remotefiles/) | Remote file fetching | Download dependencies |
+
+## Utility Modules
+
+| Module                                            | Key Functions                       | Description        |
+| ------------------------------------------------- | ----------------------------------- | ------------------ |
+| [re2](/reference/utilities/#re2-module)           | `compile`, `quote`                  | Regex patterns     |
+| [datetime](/reference/utilities/#datetime-module) | `now`, `fromtimestamp`              | Date/time handling |
+| [hashing](/reference/utilities/#hashing-module)   | `path_sha256_sum`, `str_sha256_sum` | Checksums          |
+
+## Common Patterns
+
+### Basic Workflow
+
+```starlark
+core.workflow(
+    name = "default",
+    origin = git.origin(url = "...", ref = "main"),
+    destination = git.destination(url = "..."),
+    origin_files = glob(["src/**"]),
+    authoring = authoring.pass_thru("Bot <bot@example.com>"),
+    transformations = [...],
+)
+```
+
+### File Operations
+
+```starlark
+transformations = [
+    core.move("old/path", "new/path"),
+    core.copy("src/template", "src/generated"),
+    core.remove(glob(["**/*.bak"])),
+    core.replace(before = "old", after = "new"),
+]
+```
+
+### Metadata Operations
+
+```starlark
+transformations = [
+    metadata.squash_notes(prefix = "Import:\n"),
+    metadata.scrubber("CONFIDENTIAL:.*"),
+    metadata.add_header("Source: internal"),
+]
+```
+
+## CLI Quick Reference
+
+```bash
+# Run workflow
+copybara migrate copy.bara.sky [workflow-name]
+
+# Dry run
+copybara migrate copy.bara.sky --dry-run
+
+# From specific revision
+copybara migrate copy.bara.sky --last-rev abc123
+
+# Ignore no-op
+copybara migrate copy.bara.sky --ignore-noop
+
+# Validate config
+copybara validate copy.bara.sky
+```
+
+## Next Steps
+
+- [CLI reference](/reference/cli/) - Complete command options
+- [Glossary](/reference/glossary/) - Term definitions
