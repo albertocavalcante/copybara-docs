@@ -145,6 +145,7 @@ export default defineConfig({
 						{ label: 'Git Module', slug: 'reference/git' },
 						{ label: 'Metadata Module', slug: 'reference/metadata' },
 						{ label: 'Authoring Module', slug: 'reference/authoring' },
+						{ label: 'Remote Files Module', slug: 'reference/remotefiles' },
 						{ label: 'Glob Reference', slug: 'reference/glob' },
 					],
 				},

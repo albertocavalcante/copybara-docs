@@ -1,0 +1,270 @@
+---
+title: Remote Files Module
+description: Reference for remotefiles.* functions
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+# Remote Files Module
+
+The `remotefiles` module allows Copybara to use remote archives (ZIP, TAR, etc.) as origins. This is useful for syncing from package registries, release archives, or any HTTP-accessible file.
+
+<Aside type="note">
+  This module is for advanced use cases where you need to sync from sources that
+  aren't Git repositories, such as npm packages, Go modules, or release
+  tarballs.
+</Aside>
+
+## remotefiles.origin
+
+Define a remote archive as an origin:
+
+```starlark
+origin = remotefiles.origin(
+    archive_source = "https://example.com/releases/v${VERSION}.tar.gz",
+    unpack_method = "TAR_GZ",
+    version_list = my_version_list,
+    origin_version_selector = core.latest_version(),
+)
+```
+
+### Parameters
+
+| Parameter                 | Type            | Default                            | Description                                                         |
+| ------------------------- | --------------- | ---------------------------------- | ------------------------------------------------------------------- |
+| `archive_source`          | string          | `""`                               | URL template to download archive. Use `${VERSION}` as placeholder   |
+| `unpack_method`           | string          | `"AS_IS"`                          | How to unpack: `ZIP`, `TAR`, `TAR_GZ`, `TAR_XZ`, `TAR_BZ2`, `AS_IS` |
+| `author`                  | string          | `"Copybara <noreply@copybara.io>"` | Author for the generated change                                     |
+| `message`                 | string          | `"Placeholder message"`            | Commit message for the change                                       |
+| `version_list`            | VersionList     | `None`                             | Source of available versions                                        |
+| `origin_version_selector` | VersionSelector | `None`                             | How to select version from list                                     |
+| `version_resolver`        | VersionResolver | `None`                             | Resolve refs to specific versions                                   |
+| `auth`                    | AuthInterceptor | `None`                             | Authentication for HTTP requests                                    |
+
+### Unpack Methods
+
+| Method    | Description                               |
+| --------- | ----------------------------------------- |
+| `AS_IS`   | Don't unpack, use file as-is              |
+| `ZIP`     | Extract ZIP archive                       |
+| `TAR`     | Extract TAR archive                       |
+| `TAR_GZ`  | Extract gzipped TAR (`.tar.gz`, `.tgz`)   |
+| `TAR_XZ`  | Extract XZ-compressed TAR (`.tar.xz`)     |
+| `TAR_BZ2` | Extract bzip2-compressed TAR (`.tar.bz2`) |
+
+---
+
+## Examples
+
+### Basic Archive Origin
+
+Download and extract a release tarball:
+
+```starlark
+core.workflow(
+    name = "sync_release",
+    origin = remotefiles.origin(
+        archive_source = "https://github.com/org/repo/archive/refs/tags/v1.0.0.tar.gz",
+        unpack_method = "TAR_GZ",
+        author = "Release Bot <bot@example.com>",
+        message = "Import release v1.0.0",
+    ),
+    destination = git.destination(
+        url = "https://github.com/org/internal-repo",
+        push = "main",
+    ),
+    authoring = authoring.overwrite("Bot <bot@example.com>"),
+)
+```
+
+### Versioned Archive Origin
+
+Use version selectors to automatically pick the latest version:
+
+```starlark
+core.workflow(
+    name = "sync_latest",
+    origin = remotefiles.origin(
+        archive_source = "https://registry.example.com/package/${VERSION}.zip",
+        unpack_method = "ZIP",
+        version_list = http.version_list(
+            url = "https://registry.example.com/package/versions.json",
+            # Parse JSON response to get version list
+        ),
+        origin_version_selector = core.latest_version(
+            format = "^[0-9]+\\.[0-9]+\\.[0-9]+$",  # Semver only
+        ),
+    ),
+    destination = git.destination(...),
+    authoring = authoring.overwrite("Sync Bot <bot@example.com>"),
+)
+```
+
+### Go Module Sync
+
+Sync from Go module proxy:
+
+```starlark
+core.workflow(
+    name = "import_go_module",
+    origin = remotefiles.origin(
+        archive_source = "https://proxy.golang.org/github.com/org/module/@v/${VERSION}.zip",
+        unpack_method = "ZIP",
+        version_list = go.go_proxy_version_list(
+            module = "github.com/org/module",
+        ),
+        origin_version_selector = core.latest_version(),
+    ),
+    destination = git.destination(
+        url = "https://internal.example.com/go-modules/module",
+        push = "main",
+    ),
+    authoring = authoring.overwrite("Go Sync <go-sync@example.com>"),
+)
+```
+
+### NPM Package Sync
+
+Sync an npm package:
+
+```starlark
+core.workflow(
+    name = "import_npm_package",
+    origin = remotefiles.origin(
+        archive_source = "https://registry.npmjs.org/package-name/-/package-name-${VERSION}.tgz",
+        unpack_method = "TAR_GZ",
+        version_list = npm.npm_version_list(
+            package_name = "package-name",
+        ),
+        origin_version_selector = core.latest_version(),
+    ),
+    destination = git.destination(...),
+    authoring = authoring.overwrite("NPM Sync <npm@example.com>"),
+)
+```
+
+### With Authentication
+
+Download from authenticated endpoint:
+
+```starlark
+core.workflow(
+    name = "sync_private_archive",
+    origin = remotefiles.origin(
+        archive_source = "https://private.example.com/releases/${VERSION}.tar.gz",
+        unpack_method = "TAR_GZ",
+        auth = http.bearer_auth(
+            credentials.static_secret("api_token", "API_TOKEN"),
+        ),
+    ),
+    destination = git.destination(...),
+    authoring = authoring.overwrite("Bot <bot@example.com>"),
+)
+```
+
+---
+
+## Version Selection
+
+When using `version_list` and `origin_version_selector`, Copybara automatically selects which version to sync.
+
+### Version Selectors
+
+| Selector                                | Description                      |
+| --------------------------------------- | -------------------------------- |
+| `core.latest_version()`                 | Select the latest/newest version |
+| `core.latest_version(format = "regex")` | Latest version matching regex    |
+| Custom selector                         | Implement custom selection logic |
+
+### How It Works
+
+1. Copybara fetches the version list from `version_list`
+2. The `origin_version_selector` picks a version
+3. The `${VERSION}` placeholder in `archive_source` is replaced
+4. The archive is downloaded and unpacked
+
+```starlark
+# Example flow:
+# 1. version_list returns: ["1.0.0", "1.1.0", "2.0.0"]
+# 2. origin_version_selector picks: "2.0.0"
+# 3. archive_source becomes: "https://example.com/releases/v2.0.0.tar.gz"
+# 4. Archive is downloaded and extracted
+```
+
+---
+
+## Use Cases
+
+### Importing Third-Party Libraries
+
+Import a library that doesn't use Git:
+
+```starlark
+origin = remotefiles.origin(
+    archive_source = "https://example.com/lib-${VERSION}.tar.gz",
+    unpack_method = "TAR_GZ",
+    version_list = ...,
+    origin_version_selector = core.latest_version(),
+)
+```
+
+### Vendoring Dependencies
+
+Vendor external dependencies into your repository:
+
+```starlark
+core.workflow(
+    name = "vendor_dep",
+    origin = remotefiles.origin(...),
+    destination = git.destination(
+        url = "https://github.com/org/repo",
+        push = "main",
+    ),
+    destination_files = glob(["vendor/dep/**"]),
+    transformations = [
+        core.move("", "vendor/dep/"),
+    ],
+    ...
+)
+```
+
+### Release Mirroring
+
+Mirror releases from one location to another:
+
+```starlark
+core.workflow(
+    name = "mirror_releases",
+    origin = remotefiles.origin(
+        archive_source = "https://external.example.com/releases/${VERSION}.zip",
+        unpack_method = "ZIP",
+        ...
+    ),
+    destination = git.destination(
+        url = "https://internal.example.com/mirror",
+        push = "releases",
+    ),
+    ...
+)
+```
+
+---
+
+## Limitations
+
+- **No history**: Remote archives don't have Git history; each sync creates a single commit
+- **No incremental sync**: Each run downloads the entire archive
+- **State tracking**: Uses `${VERSION}` for state tracking; versionless origins always re-sync
+
+<Aside type="tip">
+  For Git repositories, prefer `git.origin()` over `remotefiles.origin()` as it
+  provides better history tracking and incremental syncing.
+</Aside>
+
+---
+
+## Next Steps
+
+- [Core module reference](/reference/core/)
+- [Git module reference](/reference/git/)
+- [CI/CD Authentication](/cicd/authentication/) (for auth setup)
