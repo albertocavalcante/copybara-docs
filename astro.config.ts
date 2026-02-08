@@ -75,6 +75,7 @@ export default defineConfig({
 						{ label: 'Open Source a Project', slug: 'guides/open-source-project' },
 						{ label: 'Sync Docs via PR', slug: 'guides/sync-docs-via-pr' },
 						{ label: 'Performance & Scaling', slug: 'guides/performance' },
+						{ label: 'State Management', slug: 'guides/state-management' },
 						{
 							label: 'Unsupported Platforms',
 							collapsed: true,
@@ -143,6 +144,7 @@ export default defineConfig({
 					label: 'CI/CD Integration',
 					items: [
 						{ label: 'GitHub Actions', slug: 'cicd/github-actions' },
+						{ label: 'GitLab CI', slug: 'cicd/gitlab-ci' },
 						{ label: 'Authentication', slug: 'cicd/authentication' },
 						{ label: 'Automation Patterns', slug: 'cicd/automation' },
 					],

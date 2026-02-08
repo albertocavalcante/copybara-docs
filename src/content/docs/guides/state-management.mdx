@@ -1,0 +1,259 @@
+---
+title: State Management
+description: Understanding how Copybara tracks sync state and managing it
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Copybara tracks synchronization state to know which commits have been synced. Understanding this mechanism helps diagnose issues and recover from problems.
+
+## How State Tracking Works
+
+### GitOrigin-RevId Marker
+
+Copybara embeds a marker in each synced commit message:
+
+```text
+Sync latest changes from upstream
+
+GitOrigin-RevId: abc123def456789
+```
+
+This marker identifies the source commit that was synced. On subsequent runs, Copybara:
+
+1. Reads the most recent commit in the destination
+2. Extracts the `GitOrigin-RevId` value
+3. Syncs only commits newer than that revision
+
+### Finding Current State
+
+Check what revision was last synced:
+
+```bash
+# In the destination repository
+git log --grep="GitOrigin-RevId" -1
+
+# Extract just the revision
+git log --grep="GitOrigin-RevId" -1 --format="%B" | grep "GitOrigin-RevId" | cut -d: -f2 | tr -d ' '
+```
+
+## State Mismatch Problems
+
+### Symptoms
+
+- "No changes to migrate" when changes exist
+- Duplicate commits in destination
+- Missing commits
+- Sync fails with revision errors
+
+### Common Causes
+
+1. **Manual commits** in destination without marker
+2. **Force pushes** that rewrote history
+3. **Multiple workflows** syncing to same destination
+4. **Destination branch reset** or deleted
+
+## Recovery Procedures
+
+### Reset to Specific Revision
+
+Force Copybara to start from a known-good commit:
+
+```bash
+# Start from a specific source commit
+copybara migrate copy.bara.sky --last-rev abc123def
+
+# Start from N commits back
+copybara migrate copy.bara.sky --last-rev HEAD~10
+```
+
+<Aside type="caution">
+  This may result in duplicate commits if the destination already has some of
+  those changes.
+</Aside>
+
+### Force Full Re-sync
+
+When state is completely corrupted, re-sync everything:
+
+```bash
+# Delete destination branch and start fresh
+git push origin --delete target-branch
+
+# Run sync from beginning (or specific point)
+copybara migrate copy.bara.sky --last-rev <first-commit-to-sync>
+```
+
+### Fix Missing Marker
+
+If commits were made without markers, add one manually:
+
+```bash
+# In destination repo
+git commit --allow-empty -m "State recovery
+
+GitOrigin-RevId: <last-synced-source-sha>"
+```
+
+## Multi-Workflow Coordination
+
+### Problem: Conflicting Workflows
+
+Multiple workflows syncing to the same destination can corrupt state:
+
+```text
+Workflow A syncs commit 123 → destination
+Workflow B syncs commit 124 → destination
+Workflow A looks for 123, finds 124, gets confused
+```
+
+### Solution: Separate State Tracking
+
+Use different branches or labels per workflow:
+
+```starlark
+# Workflow A - uses custom label
+core.workflow(
+    name = "sync-a",
+    destination = git.destination(
+        url = "...",
+        push = "sync-a-branch",
+    ),
+    # ...
+)
+
+# Workflow B - separate branch
+core.workflow(
+    name = "sync-b",
+    destination = git.destination(
+        url = "...",
+        push = "sync-b-branch",
+    ),
+    # ...
+)
+```
+
+### Solution: Custom Label Name
+
+Use a unique label per workflow:
+
+```starlark
+core.workflow(
+    name = "my-workflow",
+    transformations = [
+        metadata.add_header("MyWorkflow-RevId: ${COPYBARA_REVISION}"),
+    ],
+    # ...
+)
+```
+
+## Inspecting State
+
+### View Sync History
+
+```bash
+# List all synced revisions
+git log --grep="GitOrigin-RevId" --format="%h %s" | head -20
+
+# Show full marker for each sync
+git log --grep="GitOrigin-RevId" --format="%B" | grep -A1 "GitOrigin-RevId"
+```
+
+### Verify Source-Destination Mapping
+
+```bash
+# For each destination commit, find source commit
+for sha in $(git log --grep="GitOrigin-RevId" --format="%h" | head -5); do
+    source_rev=$(git log -1 --format="%B" $sha | grep "GitOrigin-RevId" | cut -d: -f2)
+    echo "$sha <- $source_rev"
+done
+```
+
+### Compare Repositories
+
+Check if repos are in sync:
+
+```bash
+# Get last synced revision from destination
+LAST_SYNCED=$(git log --grep="GitOrigin-RevId" -1 --format="%B" | grep "GitOrigin-RevId" | cut -d: -f2 | tr -d ' ')
+
+# Check commits since then in source
+cd /path/to/source
+git log $LAST_SYNCED..HEAD --oneline
+```
+
+## Backup Strategies
+
+### Before Major Changes
+
+```bash
+# Tag current state before risky operations
+git tag backup-before-rebase-$(date +%Y%m%d)
+
+# Push tag to remote
+git push origin backup-before-rebase-$(date +%Y%m%d)
+```
+
+### Automated State Snapshots
+
+```bash
+#!/bin/bash
+# Run before each sync
+DEST_BRANCH="main"
+BACKUP_TAG="copybara-state-$(date +%Y%m%d-%H%M)"
+
+git fetch origin $DEST_BRANCH
+git tag $BACKUP_TAG origin/$DEST_BRANCH
+git push origin $BACKUP_TAG
+```
+
+## Dry Run Validation
+
+Test before actual sync:
+
+```bash
+# Preview what would be synced
+copybara migrate copy.bara.sky --dry-run
+
+# Validate configuration only
+copybara validate copy.bara.sky
+```
+
+## Troubleshooting Checklist
+
+When state issues occur:
+
+1. **Check current state**
+
+   ```bash
+   git log --grep="GitOrigin-RevId" -1
+   ```
+
+2. **Verify source commit exists**
+
+   ```bash
+   cd /source && git cat-file -t <revid>
+   ```
+
+3. **Check for manual commits**
+
+   ```bash
+   git log --format="%h %s" | grep -v "GitOrigin-RevId" | head -5
+   ```
+
+4. **Verify workflow name**
+
+   ```bash
+   copybara validate copy.bara.sky
+   ```
+
+5. **Try with explicit revision**
+   ```bash
+   copybara migrate copy.bara.sky --last-rev <known-good>
+   ```
+
+## Next Steps
+
+- [Common issues](/troubleshooting/common-issues/) - Error resolution
+- [Debugging](/troubleshooting/debugging/) - Detailed diagnostics
+- [CLI reference](/reference/cli/) - Command options

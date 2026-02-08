@@ -1,0 +1,238 @@
+---
+title: GitLab CI Integration
+description: Running Copybara in GitLab CI/CD pipelines
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Configure Copybara to run in GitLab CI/CD pipelines.
+
+## Basic Pipeline
+
+```yaml title=".gitlab-ci.yml"
+stages:
+  - sync
+
+copybara-sync:
+  stage: sync
+  image: docker.io/copybara/copybara:latest
+  variables:
+    GIT_STRATEGY: clone
+  script:
+    - copybara migrate copy.bara.sky --git-destination-url https://oauth2:${GITLAB_TOKEN}@gitlab.com/org/dest-repo.git
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+```
+
+## Authentication
+
+### GitLab Token
+
+Create a Project Access Token or Personal Access Token:
+
+1. Go to **Settings > Access Tokens**
+2. Create token with `read_repository` and `write_repository` scopes
+3. Add as CI/CD variable `GITLAB_TOKEN`
+
+```yaml
+variables:
+  GIT_AUTHOR_NAME: "Copybara Bot"
+  GIT_AUTHOR_EMAIL: "copybara@example.com"
+  GIT_COMMITTER_NAME: "Copybara Bot"
+  GIT_COMMITTER_EMAIL: "copybara@example.com"
+
+script:
+  - git config --global credential.helper store
+  - echo "https://oauth2:${GITLAB_TOKEN}@gitlab.com" >> ~/.git-credentials
+  - copybara migrate copy.bara.sky
+```
+
+### Cross-Platform (GitLab to GitHub)
+
+```yaml
+variables:
+  GITLAB_TOKEN: $GITLAB_TOKEN
+  GITHUB_TOKEN: $GITHUB_TOKEN
+
+script:
+  - echo "https://oauth2:${GITLAB_TOKEN}@gitlab.com" >> ~/.git-credentials
+  - echo "https://x-access-token:${GITHUB_TOKEN}@github.com" >> ~/.git-credentials
+  - copybara migrate copy.bara.sky
+```
+
+## Scheduled Syncs
+
+Set up periodic synchronization:
+
+```yaml
+copybara-sync:
+  stage: sync
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  script:
+    - copybara migrate copy.bara.sky --ignore-noop
+```
+
+Create a schedule in **CI/CD > Schedules**:
+
+- **Interval**: `0 */6 * * *` (every 6 hours)
+- **Target branch**: main
+
+## Merge Request Workflows
+
+Sync on merge request events:
+
+```yaml
+copybara-mr-sync:
+  stage: sync
+  rules:
+    - if: $CI_MERGE_REQUEST_IID && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"
+      when: on_success
+  script:
+    - copybara migrate copy.bara.sky --ignore-noop
+```
+
+## Multi-Project Setup
+
+Sync to multiple destinations:
+
+```yaml
+stages:
+  - sync
+
+.sync-template: &sync-template
+  image: docker.io/copybara/copybara:latest
+  stage: sync
+  before_script:
+    - git config --global credential.helper store
+    - echo "https://oauth2:${GITLAB_TOKEN}@gitlab.com" >> ~/.git-credentials
+
+sync-project-a:
+  <<: *sync-template
+  script:
+    - copybara migrate copy.bara.sky project-a
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - changes:
+        - "project-a/**"
+
+sync-project-b:
+  <<: *sync-template
+  script:
+    - copybara migrate copy.bara.sky project-b
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - changes:
+        - "project-b/**"
+```
+
+## Caching
+
+Cache Copybara's working directory:
+
+```yaml
+copybara-sync:
+  cache:
+    key: copybara-cache
+    paths:
+      - .copybara/
+  variables:
+    COPYBARA_LOCAL_REPO_DIR: ${CI_PROJECT_DIR}/.copybara
+  script:
+    - copybara migrate copy.bara.sky
+```
+
+## Error Handling
+
+Handle failures gracefully:
+
+```yaml
+copybara-sync:
+  script:
+    - |
+      copybara migrate copy.bara.sky --ignore-noop || {
+        exit_code=$?
+        if [ $exit_code -eq 48 ]; then
+          echo "No changes to sync - this is OK"
+          exit 0
+        fi
+        exit $exit_code
+      }
+  allow_failure: false
+```
+
+<Aside type="note">
+  Exit code 48 indicates "no changes to migrate" which may be acceptable in
+  scheduled runs.
+</Aside>
+
+## Notifications
+
+Send Slack notification on failure:
+
+```yaml
+copybara-sync:
+  script:
+    - copybara migrate copy.bara.sky
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" == "failed" ]; then
+        curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"Copybara sync failed: '$CI_JOB_URL'"}' \
+          $SLACK_WEBHOOK_URL
+      fi
+```
+
+## Example: Full Pipeline
+
+Complete pipeline with validation, sync, and notifications:
+
+```yaml
+stages:
+  - validate
+  - sync
+  - notify
+
+variables:
+  COPYBARA_IMAGE: docker.io/copybara/copybara:latest
+
+validate-config:
+  stage: validate
+  image: $COPYBARA_IMAGE
+  script:
+    - copybara validate copy.bara.sky
+  rules:
+    - changes:
+        - copy.bara.sky
+
+sync-to-dest:
+  stage: sync
+  image: $COPYBARA_IMAGE
+  before_script:
+    - git config --global credential.helper store
+    - echo "https://oauth2:${GITLAB_TOKEN}@gitlab.com" >> ~/.git-credentials
+  script:
+    - copybara migrate copy.bara.sky --ignore-noop
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        - "src/**"
+
+notify-success:
+  stage: notify
+  needs:
+    - sync-to-dest
+  script:
+    - echo "Sync completed successfully"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: on_success
+```
+
+## Next Steps
+
+- [GitHub Actions](/cicd/github-actions/) - Alternative CI platform
+- [Authentication](/cicd/authentication/) - Credential setup
+- [Automation patterns](/cicd/automation/) - Advanced workflows
