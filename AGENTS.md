@@ -23,13 +23,47 @@ lefthook install   # Install git hooks
 2. **Formatting**: Run `dprint fmt` before commit.
 3. **Build**: Run `bun build` to verify changes.
 
+## Starlight Conventions
+
+### No H1 Headings in Content
+
+Starlight automatically renders the frontmatter `title` as the page's H1 heading. **Do not add `# Heading` in MDX content** - it creates duplicates.
+
+Per [Starlight's authoring guide](https://starlight.astro.build/guides/authoring-content/):
+
+> "We recommend starting each page with regular paragraph text content and using on-page headings from `<h2>` and down."
+
+**Correct:**
+
+```mdx
+---
+title: My Page Title
+---
+
+Introduction paragraph text here.
+
+## First Section
+```
+
+**Wrong:**
+
+```mdx
+---
+title: My Page Title
+---
+
+# My Page Title   ← DON'T DO THIS
+
+Introduction text.
+```
+
 ## Known Limitations
 
 ### MDX Code Blocks Inside Tabs Components
 
 The dprint/prettier formatter **cannot correctly format MDX files** that contain fenced code blocks inside `<Tabs>` / `<TabItem>` components. The formatter breaks indentation and merges multi-line code into single lines.
 
-**Affected files** are listed in `.dprintignore` and excluded from automatic formatting.
+**Affected files** are excluded in `dprint.json` under the `excludes` array.
 
 **Related issues:**
 
