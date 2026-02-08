@@ -5,8 +5,6 @@ description: Definitions of terms and concepts used in Copybara documentation
 
 import { Aside } from "@astrojs/starlight/components";
 
-# Glossary
-
 Quick reference for terminology used throughout this documentation. If you're new to code synchronization tools or coming from a different ecosystem, this page will help you understand the concepts.
 
 ## Code Review Systems
@@ -113,6 +111,54 @@ transformations = [
 ```
 
 **Related:** [Transformations Overview](/transformations/overview/)
+
+### GitOrigin-RevId
+
+The **GitOrigin-RevId** is a label Copybara adds to destination commits to track which source commit they came from. This enables incremental syncing—Copybara knows where to resume on the next run.
+
+```
+GitOrigin-RevId: abc123def456789...
+```
+
+If this label is missing or corrupted, Copybara may re-sync already-synced commits or fail with state errors.
+
+**Related:** [Troubleshooting Common Issues](/troubleshooting/common-issues/)
+
+### Dry Run
+
+A **dry run** (`--dry-run` flag) executes a workflow without making actual changes. Copybara shows what would happen without pushing to the destination. Essential for testing configurations.
+
+```bash
+java -jar copybara.jar migrate copy.bara.sky workflow --dry-run
+```
+
+**Related:** [CLI Reference](/reference/cli/)
+
+### Reversible Transformation
+
+A **reversible transformation** can be undone when importing changes back. For example, if you rename `internal/` to `src/` during export, a reversible transform can restore `src/` to `internal/` during import.
+
+```starlark
+core.move("internal/", "src/", paths = glob(["**"]))
+# This is reversible: import can apply the inverse
+```
+
+**Related:** [Custom Transformations](/transformations/custom/)
+
+### Feedback Workflow
+
+A **feedback workflow** is triggered by events (like PR creation) rather than running on a schedule. It can post comments, update labels, or call external APIs in response to repository events.
+
+```starlark
+core.feedback(
+    name = "notify",
+    origin = git.github_trigger(...),
+    destination = git.github_api(...),
+    actions = [...],
+)
+```
+
+**Related:** [Feedback Workflows](/workflows/feedback/)
 
 ---
 
