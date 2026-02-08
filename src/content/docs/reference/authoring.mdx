@@ -78,6 +78,43 @@ authoring = authoring.allowed(
 )
 ```
 
+## Allowlist Patterns
+
+The `allowlist` parameter supports glob-style patterns:
+
+| Pattern             | Matches                  |
+| ------------------- | ------------------------ |
+| `alice@example.com` | Exact email match        |
+| `*@company.com`     | Any email at company.com |
+| `*@*.company.com`   | Any subdomain email      |
+
+## Behavior Details
+
+### What Happens When Author Doesn't Match
+
+When using `authoring.allowed` and an author isn't in the allowlist:
+
+1. Commit is attributed to the `default` author
+2. Original author is preserved in the commit message body (configurable)
+3. The transformation continues normally
+
+### Malformed Authors
+
+If the source commit has a malformed author (missing email, empty name), Copybara uses the default author.
+
+### Author vs Committer
+
+Git distinguishes between **author** (who wrote the code) and **committer** (who applied it). Copybara's authoring module affects the **author** field. The committer is typically the user/bot running Copybara.
+
+## Common Use Cases
+
+| Use Case                                   | Authoring Mode |
+| ------------------------------------------ | -------------- |
+| Open source export (preserve contributors) | `pass_thru`    |
+| Automated sync (bot attribution)           | `overwrite`    |
+| Internal → External (allow known devs)     | `allowed`      |
+| Mirror (exact copy)                        | `pass_thru`    |
+
 ## Next Steps
 
 - [Glob reference](/reference/glob/)

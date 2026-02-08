@@ -97,6 +97,78 @@ core.replace(
 core.remove(glob(["**/*.bak"]))
 ```
 
+## Advanced Patterns
+
+### Match Root Files Only
+
+```starlark
+glob(["*.md"])           # Only root-level .md files
+glob(["**/*.md"])        # All .md files recursively
+```
+
+### Match Specific Depth
+
+```starlark
+glob(["src/*/*.py"])     # Python files exactly 1 level under src/
+glob(["src/**/*.py"])    # Python files at any depth under src/
+```
+
+### Multiple Extensions
+
+```starlark
+glob(["**/*.{js,ts,jsx,tsx}"])  # NOT supported - use list instead
+glob(["**/*.js", "**/*.ts", "**/*.jsx", "**/*.tsx"])  # Correct
+```
+
+### Hidden Files
+
+```starlark
+glob(["**/.*"])          # All hidden files (starting with .)
+glob(["**/.github/**"])  # .github directory contents
+```
+
+## Common Pitfalls
+
+### Pitfall: Missing `**` for Recursive Match
+
+```starlark
+# WRONG: Only matches src/file.py, not src/sub/file.py
+glob(["src/*.py"])
+
+# CORRECT: Matches all .py files under src/
+glob(["src/**/*.py"])
+```
+
+### Pitfall: Exclude Order Matters
+
+Excludes are processed after includes. An excluded path cannot be re-included.
+
+```starlark
+glob(
+    include = ["**"],
+    exclude = ["internal/**"],
+)
+# internal/important.txt is EXCLUDED even if you wanted it
+```
+
+### Pitfall: Trailing Slashes
+
+Glob patterns should NOT have trailing slashes:
+
+```starlark
+# WRONG
+glob(["src/"])
+
+# CORRECT
+glob(["src/**"])
+```
+
+## Performance Tips
+
+- Be as specific as possible with include patterns
+- Exclude large directories you don't need (e.g., `node_modules`, `.git`)
+- Prefer `["src/**"]` over `["**"]` + exclude when possible
+
 ## Next Steps
 
 - [Glob patterns guide](/config/glob-patterns/)
