@@ -172,16 +172,18 @@ core.move("src/main.py", "lib/app.py")
 
 ## Debugging Moves
 
-Test with folder destination:
+Test with folder destination using `--to-folder` and `--folder-dir`:
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky test \
-  --folder-origin /path/to/source \
-  --folder-destination /tmp/output
+java -jar copybara.jar migrate copy.bara.sky export \
+  --to-folder \
+  --folder-dir /tmp/output
 
 # Check the structure
 find /tmp/output -type f
 ```
+
+Or create a dedicated test workflow with `folder.origin()` and `folder.destination()` in your config.
 
 ## Next Steps
 

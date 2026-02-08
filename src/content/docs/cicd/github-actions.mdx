@@ -37,7 +37,7 @@ jobs:
       - name: Download Copybara
         run: |
           curl -fsSL -o copybara.jar \
-            https://github.com/google/copybara/releases/download/v20251215/copybara_deploy.jar
+            https://github.com/google/copybara/releases/latest/download/copybara_deploy.jar
 
       - name: Configure Git
         run: |
@@ -100,7 +100,7 @@ jobs:
 
 ## Caching Copybara JAR
 
-Speed up workflows by caching:
+Speed up workflows by caching. Use a weekly cache key to periodically fetch new releases:
 
 ```yaml
 - name: Cache Copybara
@@ -108,14 +108,21 @@ Speed up workflows by caching:
   uses: actions/cache@v4
   with:
     path: copybara.jar
-    key: copybara-v20251215
+    key: copybara-${{ github.run_id }}
+    restore-keys: copybara-
 
 - name: Download Copybara
   if: steps.cache-copybara.outputs.cache-hit != 'true'
   run: |
     curl -fsSL -o copybara.jar \
-      https://github.com/google/copybara/releases/download/v20251215/copybara_deploy.jar
+      https://github.com/google/copybara/releases/latest/download/copybara_deploy.jar
 ```
+
+<Aside type="tip">
+  Using `latest` in the download URL automatically fetches the newest release.
+  The cache with `restore-keys` prefix ensures you don't re-download on every
+  run.
+</Aside>
 
 ## Authentication Methods
 
@@ -247,14 +254,15 @@ runs:
       uses: actions/cache@v4
       with:
         path: copybara.jar
-        key: copybara-v20251215
+        key: copybara-${{ github.run_id }}
+        restore-keys: copybara-
 
     - name: Download Copybara
       shell: bash
       run: |
         if [ ! -f copybara.jar ]; then
           curl -fsSL -o copybara.jar \
-            https://github.com/google/copybara/releases/download/v20251215/copybara_deploy.jar
+            https://github.com/google/copybara/releases/latest/download/copybara_deploy.jar
         fi
 
     - name: Configure Git
@@ -328,13 +336,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: copybara.jar
-          key: copybara-v20251215
+          key: copybara-${{ github.run_id }}
+          restore-keys: copybara-
 
       - name: Download Copybara
         run: |
           if [ ! -f copybara.jar ]; then
             curl -fsSL -o copybara.jar \
-              https://github.com/google/copybara/releases/download/v20251215/copybara_deploy.jar
+              https://github.com/google/copybara/releases/latest/download/copybara_deploy.jar
           fi
 
       - name: Configure Git

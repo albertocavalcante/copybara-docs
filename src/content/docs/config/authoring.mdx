@@ -190,7 +190,8 @@ Check author configuration:
 ```bash
 # Preview the sync
 java -jar copybara.jar migrate copy.bara.sky workflow \
-  --folder-destination /tmp/output
+  --to-folder \
+  --folder-dir /tmp/output
 
 # Check the commit
 cd /tmp/output

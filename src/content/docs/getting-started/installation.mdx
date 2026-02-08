@@ -19,10 +19,16 @@ The easiest way to run Copybara is to download a pre-built release.
 
    ```bash
    curl -fsSL -o copybara_deploy.jar \
-     https://github.com/google/copybara/releases/download/v20251215/copybara_deploy.jar
+     https://github.com/google/copybara/releases/latest/download/copybara_deploy.jar
    ```
 
-2. **Verify Java is installed** (Java 11+ required)
+   <Aside type="note">
+     This downloads the latest release automatically. You can also browse
+     [releases on GitHub](https://github.com/google/copybara/releases) to
+     download a specific version.
+   </Aside>
+
+2. **Verify Java is installed** (Java 11+ required, Java 21 recommended)
 
    ```bash
    java -version
@@ -30,7 +36,8 @@ The easiest way to run Copybara is to download a pre-built release.
 
 3. **Run Copybara**
    ```bash
-   java -jar copybara_deploy.jar --help
+   java -jar copybara_deploy.jar version
+   java -jar copybara_deploy.jar help
    ```
 
 </Steps>
@@ -92,9 +99,9 @@ docker run -v $(pwd):/workspace \
 ```dockerfile title="Dockerfile"
 FROM eclipse-temurin:21-jdk
 
-# Download Copybara
+# Download latest Copybara
 RUN curl -fsSL -o /opt/copybara_deploy.jar \
-    https://github.com/google/copybara/releases/download/v20251215/copybara_deploy.jar
+    https://github.com/google/copybara/releases/latest/download/copybara_deploy.jar
 
 # Set up entrypoint
 ENTRYPOINT ["java", "-jar", "/opt/copybara_deploy.jar"]

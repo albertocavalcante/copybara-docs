@@ -1,203 +1,477 @@
 ---
 title: CLI Reference
-description: Copybara command-line interface reference
+description: Complete Copybara command-line interface reference
 ---
+
+import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
 
 # CLI Reference
 
-Copybara command-line interface.
+Complete reference for the Copybara command-line interface.
 
 ## Basic Usage
 
 ```bash
-java -jar copybara_deploy.jar <command> <config_file> [workflow] [flags]
+java -jar copybara_deploy.jar <command> <config_file> [workflow] [source_ref] [flags]
 ```
+
+<Aside type="tip">
+  Create an alias for convenience: ```bash alias copybara='java -jar
+  /path/to/copybara_deploy.jar' ``` Then use `copybara` instead of `java -jar
+  copybara_deploy.jar` in all commands.
+</Aside>
 
 ## Commands
 
+Copybara supports the following commands:
+
+| Command      | Description                              |
+| ------------ | ---------------------------------------- |
+| `migrate`    | Execute a migration workflow (default)   |
+| `validate`   | Validate configuration without running   |
+| `info`       | Show migration state and pending changes |
+| `feedback`   | Run a feedback workflow                  |
+| `help`       | Show help for commands and flags         |
+| `version`    | Show Copybara version                    |
+| `generator`  | Generate a config file interactively     |
+| `onboard`    | Experimental assisted onboarding tool    |
+| `regenerate` | Regenerate patch files                   |
+
 ### migrate
 
-Run a synchronization workflow:
+The primary command for running synchronization workflows:
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky workflow_name [flags]
+copybara migrate copy.bara.sky workflow_name [source_ref] [flags]
+```
+
+**Arguments:**
+
+- `config_file`: Path to your `.bara.sky` configuration file
+- `workflow_name`: Name of the workflow to run (defaults to `default`)
+- `source_ref`: Optional reference to migrate from (usually auto-detected)
+
+**Example:**
+
+```bash
+copybara migrate copy.bara.sky export --init-history
 ```
 
 ### validate
 
-Validate configuration without running:
+Validate configuration syntax and structure without executing:
 
 ```bash
-java -jar copybara.jar validate copy.bara.sky [workflow_name]
+copybara validate copy.bara.sky [workflow_name]
+```
+
+**Example:**
+
+```bash
+copybara validate copy.bara.sky export
 ```
 
 ### info
 
-Show information about a workflow:
+Show information about the migration state:
 
 ```bash
-java -jar copybara.jar info copy.bara.sky workflow_name
+copybara info copy.bara.sky workflow_name
 ```
+
+Shows the last migrated revision and pending changes.
 
 ### feedback
 
-Run a feedback workflow:
+Run a feedback workflow (for event-driven actions):
 
 ```bash
-java -jar copybara.jar feedback copy.bara.sky feedback_workflow_name
+copybara feedback copy.bara.sky feedback_workflow_name
 ```
+
+### help
+
+Show help for any command:
+
+```bash
+copybara help              # General help
+copybara help migrate      # Help for migrate command
+```
+
+### version
+
+Show the installed Copybara version:
+
+```bash
+copybara version
+```
+
+### generator
+
+Interactively generate a configuration file:
+
+```bash
+copybara generator
+```
+
+<Aside type="note">
+  The generator command asks questions to help you create a basic configuration
+  file. Useful for getting started quickly.
+</Aside>
+
+---
 
 ## Common Flags
 
-### --init-history
+### Migration Control
 
-Process all history (first-time sync):
+#### --init-history
+
+Process all history from the beginning. **Required for first-time sync:**
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky export --init-history
+copybara migrate copy.bara.sky export --init-history
 ```
 
-### --last-rev
+<Aside type="caution">
+  Only use `--init-history` for the initial migration. Subsequent runs should
+  not use this flag.
+</Aside>
 
-Start from a specific commit:
+#### --last-rev
+
+Start from a specific commit SHA:
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky export --last-rev abc123
+copybara migrate copy.bara.sky export --last-rev abc123def456
 ```
 
-### --force
+Useful for:
 
-Force sync (ignore state, overwrite destination):
+- Resetting state after issues
+- Skipping problematic commits
+- Starting from a known good point
+
+#### --force
+
+Force sync even if state tracking suggests changes were already migrated:
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky export --force
+copybara migrate copy.bara.sky export --force
 ```
 
-### --ignore-noop
+#### --ignore-noop
 
-Don't fail if there are no changes:
+Don't fail if there are no changes to migrate (exit code 0 instead of 2):
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky export --ignore-noop
+copybara migrate copy.bara.sky export --ignore-noop
 ```
 
-### --dry-run
+**Recommended for CI/CD** where "no changes" is not an error.
 
-Show what would happen without making changes:
+#### --dry-run
+
+Preview what would happen without making actual changes:
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky export --dry-run
+copybara migrate copy.bara.sky export --dry-run
 ```
 
-### --folder-origin
+Some destinations may still create draft PRs in dry-run mode.
 
-Use local folder as origin:
+#### --squash
+
+Override workflow mode to SQUASH for this run:
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky test \
-  --folder-origin /path/to/source
+copybara migrate copy.bara.sky export --squash
 ```
 
-### --folder-destination
+Useful for one-off squashed exports from ITERATIVE workflows.
 
-Write to local folder:
+---
+
+### Local Testing
+
+These flags help you test workflows locally without pushing to real destinations.
+
+#### --folder-dir
+
+Write output to a local directory instead of the configured destination:
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky test \
-  --folder-destination /path/to/output
+copybara migrate copy.bara.sky export --folder-dir /tmp/output
 ```
 
-### --git-destination-url
+<Aside type="tip">
+  This is the most useful flag for debugging transformations. Inspect the output
+  directory to verify files are transformed correctly.
+</Aside>
 
-Override destination URL:
+**Note:** The directory will be cleared before writing. All existing files are deleted.
+
+#### --to-folder
+
+Force any workflow to use `folder.destination()` without modifying the config:
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky export \
+copybara migrate copy.bara.sky export --to-folder
+```
+
+Combined with `--folder-dir`:
+
+```bash
+copybara migrate copy.bara.sky export --to-folder --folder-dir /tmp/preview
+```
+
+This is perfect for testing what a real workflow would produce.
+
+---
+
+### Git Overrides
+
+Override Git-related settings from the command line.
+
+#### --git-destination-url
+
+Override the destination repository URL:
+
+```bash
+copybara migrate copy.bara.sky export \
   --git-destination-url https://github.com/other/repo
 ```
 
-### --read-config-from-change
+#### --git-destination-push
 
-Read config from the migrated change:
-
-```bash
-java -jar copybara.jar migrate copy.bara.sky export \
-  --read-config-from-change
-```
-
-## Output Control
-
-### --console-file-path
-
-Write console output to file:
+Override the destination branch to push to:
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky export \
-  --console-file-path output.log
+copybara migrate copy.bara.sky export \
+  --git-destination-push feature-branch
 ```
 
-### -v (verbose)
+#### --git-destination-fetch
 
-Increase verbosity:
+Override the destination branch to fetch from:
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky export -v
-java -jar copybara.jar migrate copy.bara.sky export -vv  # More verbose
+copybara migrate copy.bara.sky export \
+  --git-destination-fetch main
 ```
+
+#### --default-author
+
+Override the default commit author:
+
+```bash
+copybara migrate copy.bara.sky export \
+  --default-author "Bot <bot@example.com>"
+```
+
+---
+
+### GitHub/Gerrit Flags
+
+#### --gerrit-change-id
+
+Reuse a specific Gerrit change ID:
+
+```bash
+copybara migrate copy.bara.sky export \
+  --gerrit-change-id I1234567890abcdef
+```
+
+#### --gerrit-topic
+
+Set the Gerrit topic for the change:
+
+```bash
+copybara migrate copy.bara.sky export \
+  --gerrit-topic my-feature
+```
+
+#### --github-destination-pr-branch
+
+Override the PR branch name:
+
+```bash
+copybara migrate copy.bara.sky export \
+  --github-destination-pr-branch custom-branch-name
+```
+
+---
+
+### Advanced Flags
+
+#### --read-config-from-change
+
+Read the config from the change being migrated (for versioned configs):
+
+```bash
+copybara migrate copy.bara.sky export --read-config-from-change
+```
+
+#### --iterative-limit-changes
+
+Limit the number of changes to process in ITERATIVE mode:
+
+```bash
+copybara migrate copy.bara.sky export --iterative-limit-changes 10
+```
+
+#### --same-version
+
+Re-import the same version that was last imported:
+
+```bash
+copybara migrate copy.bara.sky export --same-version
+```
+
+Useful for verifying config refactors don't change output.
+
+#### --config-root
+
+Set the root path for resolving absolute config labels:
+
+```bash
+copybara migrate copy.bara.sky export \
+  --config-root /path/to/configs
+```
+
+---
+
+### Output Control
+
+#### --console-file-path
+
+Write console output to a file:
+
+```bash
+copybara migrate copy.bara.sky export \
+  --console-file-path copybara.log
+```
+
+#### -v, --verbose
+
+Increase output verbosity:
+
+```bash
+copybara migrate copy.bara.sky export -v      # Verbose
+copybara migrate copy.bara.sky export -v -v   # More verbose
+```
+
+#### --noansi
+
+Disable ANSI color codes (useful for CI logs):
+
+```bash
+copybara migrate copy.bara.sky export --noansi
+```
+
+---
+
+### Performance Flags
+
+#### --commands-timeout
+
+Set timeout for individual commands (default: 15 minutes):
+
+```bash
+copybara migrate copy.bara.sky export --commands-timeout PT30M
+```
+
+Format uses ISO 8601 duration (PT = Period Time, M = Minutes, H = Hours).
+
+#### --repo-timeout
+
+Set timeout for repository operations (default: 15 minutes):
+
+```bash
+copybara migrate copy.bara.sky export --repo-timeout PT20M
+```
+
+#### --threads
+
+Number of threads for parallel transformations (default: 10):
+
+```bash
+copybara migrate copy.bara.sky export --threads 20
+```
+
+---
 
 ## Examples
 
-### Initial Sync
+### First-Time Sync
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky export --init-history
+copybara migrate copy.bara.sky export --init-history
 ```
 
-### Incremental Sync
+### Incremental Sync (CI/CD)
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky export --ignore-noop
+copybara migrate copy.bara.sky export --ignore-noop
 ```
 
-### Preview Changes
+### Preview Changes Locally
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky export \
-  --folder-destination /tmp/preview
+copybara migrate copy.bara.sky export \
+  --to-folder \
+  --folder-dir /tmp/preview
 ```
 
-### Validate Config
+### Force Re-sync from Specific Commit
 
 ```bash
-java -jar copybara.jar validate copy.bara.sky
+copybara migrate copy.bara.sky export \
+  --last-rev abc123 \
+  --force
 ```
 
-### Force Re-sync
+### Validate Configuration
 
 ```bash
-java -jar copybara.jar migrate copy.bara.sky export \
-  --last-rev abc123 --force
+copybara validate copy.bara.sky
 ```
+
+### Debug with Verbose Output
+
+```bash
+copybara migrate copy.bara.sky export \
+  --to-folder \
+  --folder-dir /tmp/debug \
+  -v
+```
+
+---
 
 ## Exit Codes
 
-| Code | Meaning                            |
-| ---- | ---------------------------------- |
-| 0    | Success                            |
-| 1    | Error                              |
-| 2    | No changes (without --ignore-noop) |
+| Code | Meaning                                                 |
+| ---- | ------------------------------------------------------- |
+| 0    | Success                                                 |
+| 1    | Error (configuration, runtime, or authentication)       |
+| 2    | No changes to migrate (use `--ignore-noop` to suppress) |
+
+---
 
 ## Environment Variables
 
-| Variable              | Description         |
-| --------------------- | ------------------- |
-| `COPYBARA_CONFIG`     | Default config file |
-| `GIT_AUTHOR_NAME`     | Git author name     |
-| `GIT_AUTHOR_EMAIL`    | Git author email    |
-| `GIT_COMMITTER_NAME`  | Git committer name  |
-| `GIT_COMMITTER_EMAIL` | Git committer email |
+| Variable              | Description                     |
+| --------------------- | ------------------------------- |
+| `COPYBARA_CONFIG`     | Default configuration file path |
+| `GIT_AUTHOR_NAME`     | Override Git author name        |
+| `GIT_AUTHOR_EMAIL`    | Override Git author email       |
+| `GIT_COMMITTER_NAME`  | Override Git committer name     |
+| `GIT_COMMITTER_EMAIL` | Override Git committer email    |
+
+---
 
 ## Next Steps
 
 - [Core module reference](/reference/core/)
 - [Git module reference](/reference/git/)
+- [Troubleshooting common issues](/troubleshooting/common-issues/)

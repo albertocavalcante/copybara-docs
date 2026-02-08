@@ -275,14 +275,23 @@ Best for: When you need 1:1 commit mapping.
 </TabItem>
 <TabItem label="PR-based">
 
-Use **CHANGE_REQUEST**:
+Use **CHANGE_REQUEST** for PR-based workflows:
 
 ```starlark
-mode = "SQUASH",  # or "ITERATIVE"
-destination = git.github_pr_destination(...),
+mode = "CHANGE_REQUEST",
+destination = git.github_pr_destination(
+    url = "https://github.com/org/repo",
+    destination_ref = "main",
+),
 ```
 
 Best for: When changes need review, or you lack push access.
+
+<Aside type="note">
+  You can also use `SQUASH` or `ITERATIVE` modes with PR destinations - the mode
+  controls how commits are created, while the destination controls where they
+  go. `CHANGE_REQUEST` mode is specifically optimized for PR workflows.
+</Aside>
 
 </TabItem>
 </Tabs>

@@ -245,9 +245,10 @@ exclude = [
 Test which files match:
 
 ```bash
-# Use folder destination to see results
+# Use --to-folder and --folder-dir to see results
 java -jar copybara.jar migrate copy.bara.sky workflow \
-  --folder-destination /tmp/output
+  --to-folder \
+  --folder-dir /tmp/output
 
 # List the files
 find /tmp/output -type f

@@ -26,11 +26,12 @@ java -jar copybara.jar migrate copy.bara.sky export --dry-run
 
 ## Local Testing
 
-Use folder destination to preview output:
+Use `--to-folder` and `--folder-dir` to preview output locally:
 
 ```bash
 java -jar copybara.jar migrate copy.bara.sky export \
-  --folder-destination /tmp/output
+  --to-folder \
+  --folder-dir /tmp/output
 ```
 
 Then inspect:
@@ -64,12 +65,16 @@ core.workflow(
 )
 ```
 
-Run locally:
+Run locally using the test workflow (which uses `folder.origin()` and `folder.destination()`):
 
 ```bash
+# First, copy your source files to a test directory
+cp -r /path/to/source /tmp/source
+
+# Run the test workflow
 java -jar copybara.jar migrate copy.bara.sky test-transforms \
-  --folder-origin /path/to/source \
-  --folder-destination /tmp/output
+  --folder-dir /tmp/output \
+  --force
 ```
 
 ## Check State
@@ -122,7 +127,8 @@ java -jar copybara.jar migrate copy.bara.sky export \
 
 ```bash
 java -jar copybara.jar migrate copy.bara.sky export \
-  --folder-destination /tmp/test
+  --to-folder \
+  --folder-dir /tmp/test
 find /tmp/test -type f
 ```
 
@@ -130,7 +136,8 @@ find /tmp/test -type f
 
 ```bash
 java -jar copybara.jar migrate copy.bara.sky export \
-  --folder-destination /tmp/test
+  --to-folder \
+  --folder-dir /tmp/test
 grep -r "old_text" /tmp/test  # Should not find
 grep -r "new_text" /tmp/test  # Should find
 ```
@@ -139,7 +146,8 @@ grep -r "new_text" /tmp/test  # Should find
 
 ```bash
 java -jar copybara.jar migrate copy.bara.sky export \
-  --folder-destination /tmp/test
+  --to-folder \
+  --folder-dir /tmp/test
 cd /tmp/test
 git log -1
 ```
