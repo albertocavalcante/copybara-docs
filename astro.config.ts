@@ -180,6 +180,7 @@ export default defineConfig({
 					label: 'Troubleshooting',
 					items: [
 						{ label: 'Common Issues', slug: 'troubleshooting/common-issues' },
+						{ label: 'FAQ', slug: 'troubleshooting/faq' },
 						{ label: 'Debugging', slug: 'troubleshooting/debugging' },
 					],
 				},

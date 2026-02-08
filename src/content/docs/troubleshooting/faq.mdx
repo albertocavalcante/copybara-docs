@@ -1,0 +1,383 @@
+---
+title: Frequently Asked Questions
+description: Common questions from the Copybara community with answers and references
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Answers to frequently asked questions, sourced from the [Copybara mailing list](https://groups.google.com/g/copybara-discuss) and [GitHub issues](https://github.com/google/copybara/issues).
+
+## General
+
+### Is Copybara stateless?
+
+**Yes and no.** Copybara itself doesn't maintain state files, but it stores state in the destination repository as a label in commit messages (`GitOrigin-RevId`).
+
+From [Issue #196](https://github.com/google/copybara/issues/196):
+
+> The binary appears to use `~/copybara` as a folder to store local state (such as caches).
+
+This means multiple users or CI jobs can run Copybara for the same config and get consistent results, as long as they can read the destination repo's commit history.
+
+**See also:** [State Management Guide](/guides/state-management/)
+
+### Can I use a custom state label instead of GitOrigin-RevId?
+
+**Yes.** Use the `experimental_custom_rev_id` parameter in `core.workflow`.
+
+From [Custom label for copybara state](https://groups.google.com/g/copybara-discuss/c/h8bO8G0Udog):
+
+> There's `experimental_custom_rev_id` setting in `core.workflow` which lets you customize the revision ID.
+
+```starlark
+core.workflow(
+    name = "default",
+    # Use custom label instead of GitOrigin-RevId
+    experimental_custom_rev_id = "X-Backport-Id",
+    # ...
+)
+```
+
+### Is bidirectional sync possible?
+
+**Yes, but it requires two separate workflows.** Copybara requires one repository to be the source of truth.
+
+From [Issue #140](https://github.com/google/copybara/issues/140):
+
+> A user asked about using Copybara for bidirectional sync between external (public) and internal (private) GitHub repos.
+
+The pattern is:
+
+1. **Push workflow**: Internal → External (source of truth is internal)
+2. **Pull workflow**: Import external PRs back to internal
+
+**See also:** [Advanced Use Cases](/use-cases/advanced/)
+
+---
+
+## Configuration
+
+### How do I use environment variables in copy.bara.sky?
+
+**You cannot directly reference environment variables in the config file.** However, you can pass values via command line.
+
+From [Issue #125](https://github.com/google/copybara/issues/125) and [Issue #142](https://github.com/google/copybara/issues/142):
+
+> Users frequently ask about using environment variables inside the copy.bara.sky file.
+
+**Workarounds:**
+
+1. Use `--git-destination-url` flag to override URLs:
+
+   ```bash
+   copybara migrate copy.bara.sky \
+     --git-destination-url "https://x-access-token:${TOKEN}@github.com/org/repo"
+   ```
+
+2. Generate the config file from a template before running Copybara
+
+3. Use the `--repo-timeout` and other CLI flags for dynamic values
+
+### Can I split configuration across multiple files?
+
+**Not directly.** Copybara expects a single `copy.bara.sky` file.
+
+From [Issue #268](https://github.com/google/copybara/issues/268):
+
+> A user asked if there's a way to list replacement rules in multiple sky files and invoke those files from the main copy.bara.sky file.
+
+**Workaround:** Define reusable functions within the same file:
+
+```starlark
+def common_transforms():
+    return [
+        core.replace(before = "old", after = "new"),
+        # ... more transforms
+    ]
+
+core.workflow(
+    name = "workflow-a",
+    transformations = common_transforms() + [
+        # workflow-specific transforms
+    ],
+)
+```
+
+### Why does my config file need to be named copy.bara.sky?
+
+**Historical convention.** The Docker image enforces this by default.
+
+From [Issue #127](https://github.com/google/copybara/issues/127):
+
+> When specifying a config other than copy.bara.sky using the COPYBARA_CONFIG environment variable, the error "Copybara config file filename should be 'copy.bara.sky'" is raised.
+
+**Solution:** Use the `COPYBARA_CONFIG` environment variable or build Copybara from source without the filename restriction.
+
+---
+
+## Docker & CI
+
+### Is there an official Docker image?
+
+**Yes.** Available at `gcr.io/copybara-docker/copybara` or build from source.
+
+From [Issue #82](https://github.com/google/copybara/issues/82):
+
+> It would be super helpful to have a copy of the latest master or release published as a docker image.
+
+**Community alternatives:**
+
+- [Olivr/copybara-action](https://github.com/Olivr/copybara-action) - Builds nightly images
+- Build your own from the Dockerfile in the repo
+
+### How do I pass command line arguments with Docker?
+
+**Use environment variables**, as the entrypoint doesn't pass arguments directly.
+
+From [Issue #158](https://github.com/google/copybara/issues/158):
+
+> The Docker entrypoint does not pass command line arguments that are given to docker run.
+
+```bash
+docker run -e COPYBARA_WORKFLOW=my-workflow \
+           -e COPYBARA_SOURCEREF=main \
+           -v $(pwd):/usr/src/app \
+           copybara
+```
+
+**Environment variables:**
+
+- `COPYBARA_CONFIG` - Config file path (default: `copy.bara.sky`)
+- `COPYBARA_WORKFLOW` - Workflow name
+- `COPYBARA_SOURCEREF` - Source reference
+- `COPYBARA_OPTIONS` - Additional options
+- `COPYBARA_SUBCOMMAND` - Subcommand (migrate, validate, etc.)
+
+### Can I run Copybara in GitHub Actions?
+
+**Yes.** Use the community action or Docker directly.
+
+From [Issue #123](https://github.com/google/copybara/issues/123):
+
+> Is it possible to run Copybara in GitHub actions?
+
+```yaml
+- uses: olivr/copybara-action@v1
+  with:
+    ssh_key: ${{ secrets.SSH_KEY }}
+```
+
+**See also:** [GitHub Actions Guide](/cicd/github-actions/)
+
+---
+
+## Authentication
+
+### How do I use deploy keys with Copybara?
+
+**Challenge:** GitHub doesn't allow the same SSH key as a deploy key in two different repos.
+
+From [Issue #131](https://github.com/google/copybara/issues/131):
+
+> Users wanted to give Copybara access to origin with read-only key and destination with read/write key.
+
+**Solutions:**
+
+1. **Use a machine user account** with access to both repos
+2. **Use GitHub App** for authentication ([Issue #264](https://github.com/google/copybara/issues/264))
+3. **Use HTTPS tokens** instead of SSH:
+   ```bash
+   echo "https://x-access-token:${TOKEN}@github.com" >> ~/.git-credentials
+   ```
+
+### How do I sync between two private repos?
+
+Mount your SSH credentials into the Docker container.
+
+From [Copybara for 2 private repos](https://groups.google.com/g/copybara-discuss/c/WlmBc6XlvSs):
+
+```bash
+docker run -v ~/.ssh:/root/.ssh \
+           -v ~/.gitconfig:/root/.gitconfig \
+           -v $(pwd):/usr/src/app \
+           copybara migrate copy.bara.sky
+```
+
+**See also:** [Authentication Guide](/cicd/authentication/)
+
+---
+
+## Workflows & Testing
+
+### How do I test a Copybara workflow before running it?
+
+**Use `--dry-run` and `folder.destination`.**
+
+From [Recommended process for adding new workflows?](https://groups.google.com/g/copybara-discuss/c/3TOr1ExHReU):
+
+> How does one test a copybara workflow? Testing workflows is difficult.
+
+**Approaches:**
+
+1. **Dry run** - Preview without making changes:
+
+   ```bash
+   copybara migrate copy.bara.sky --dry-run
+   ```
+
+2. **Folder destination** - Output to local folder for review:
+
+   ```starlark
+   core.workflow(
+       destination = folder.destination(),
+       # ...
+   )
+   ```
+
+3. **Validate command** - Check config syntax:
+   ```bash
+   copybara validate copy.bara.sky
+   ```
+
+From [Understanding the workflow](https://groups.google.com/g/copybara-discuss/c/1IImRPHnpHc):
+
+> The workaround was to use folder destination so they could iterate and re-apply copybara multiple times, then push manually.
+
+### How do I preview changes before pushing?
+
+**Use `folder.destination()` during development.**
+
+From [Issue #43](https://github.com/google/copybara/issues/43):
+
+> A user was wondering how to dry run Copybara to preview results.
+
+```starlark
+# Development/testing workflow
+core.workflow(
+    name = "test",
+    destination = folder.destination(),
+    # ... same config as production
+)
+```
+
+Then inspect the output folder before switching to `git.destination()`.
+
+---
+
+## Transformations
+
+### How do I overlay/replace specific files?
+
+**Use `core.copy()` with `overwrite=True`.**
+
+From [Issue #43](https://github.com/google/copybara/issues/43):
+
+> A user was wondering about the best way to overlay a public README.md from an internal repo.
+
+```starlark
+transformations = [
+    # Copy internal README over the synced one
+    core.copy(
+        before = "internal/README.md",
+        after = "README.md",
+        overwrite = True,
+    ),
+]
+```
+
+### Where can I find examples of custom transformations?
+
+From [Issue #254](https://github.com/google/copybara/issues/254):
+
+> A user asked for examples of more complex transformations beyond simple copies and moves.
+
+**Resources:**
+
+- [Custom Transformations Guide](/transformations/custom/)
+- [MongoDB's copy.bara.sky](https://github.com/mongodb/mongo/blob/master/copy.bara.sky) - Production example
+- [CUE's copy.bara.sky](https://github.com/cuelang/cue/blob/master/_scripts/copy.bara.sky) - Gerrit integration
+
+---
+
+## Troubleshooting
+
+### Why does Copybara say "No changes to migrate"?
+
+**The destination already has all changes from origin.**
+
+Copybara reads `GitOrigin-RevId` from the last destination commit and only syncs newer changes.
+
+**Solutions:**
+
+1. Use `--ignore-noop` to not fail on no changes
+2. Use `--force` to re-sync anyway
+3. Use `--last-rev` to start from a specific commit
+
+**See also:** [Common Issues](/troubleshooting/common-issues/)
+
+### Why is Copybara stuck on the initial run?
+
+From [Copybara is stuck on the initial run](https://groups.google.com/g/copybara-discuss/c/la2jAUxXqPo):
+
+Common causes:
+
+1. **Large repository** - Initial clone takes time
+2. **Network issues** - Slow connection to Git server
+3. **Many commits** - Use `--last-rev` to limit history
+
+```bash
+# Start from recent history only
+copybara migrate copy.bara.sky --last-rev HEAD~100
+```
+
+### How do I handle submodules?
+
+From [Issue #84](https://github.com/google/copybara/issues/84) and [Issue #216](https://github.com/google/copybara/issues/216):
+
+> Submodule not registered in destination / Cannot find object when running with submodules.
+
+Copybara has limited submodule support. Consider:
+
+1. Using `git.origin()` with `submodules = "NO"` (default)
+2. Flattening submodules before sync
+3. Syncing submodule content separately
+
+---
+
+## Feature Requests
+
+### Does Copybara support GitLab/Bitbucket natively?
+
+**Git operations work, but no native API integration** (unlike GitHub).
+
+From [Issue #153](https://github.com/google/copybara/issues/153):
+
+> GitLab support is requested.
+
+**Workaround:** Use `git.origin()` and `git.destination()` with HTTPS/SSH URLs.
+
+**See also:** [Unsupported Platforms](/guides/unsupported-platforms/overview/)
+
+### Can I force push to destination?
+
+**Not recommended**, but possible with custom scripts.
+
+From [Issue #136](https://github.com/google/copybara/issues/136):
+
+> A user wanted to protect the branch in the destination repo.
+
+Copybara is designed for incremental sync, not force pushes. If you need to rewrite history, consider resetting the destination branch manually first.
+
+---
+
+## Community Resources
+
+- **Mailing List:** [groups.google.com/g/copybara-discuss](https://groups.google.com/g/copybara-discuss)
+- **GitHub Issues:** [github.com/google/copybara/issues](https://github.com/google/copybara/issues)
+- **Community Resources:** [Community & Resources Guide](/guides/community-resources/)
+
+<Aside type="tip">
+  Can't find your answer? Search the [mailing
+  list](https://groups.google.com/g/copybara-discuss) or open a [GitHub
+  issue](https://github.com/google/copybara/issues/new).
+</Aside>
