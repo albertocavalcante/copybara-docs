@@ -76,6 +76,7 @@ export default defineConfig({
 						{ label: 'Sync Docs via PR', slug: 'guides/sync-docs-via-pr' },
 						{ label: 'Performance & Scaling', slug: 'guides/performance' },
 						{ label: 'State Management', slug: 'guides/state-management' },
+						{ label: 'Community & Resources', slug: 'guides/community-resources' },
 						{
 							label: 'Unsupported Platforms',
 							collapsed: true,

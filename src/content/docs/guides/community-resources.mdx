@@ -1,0 +1,190 @@
+---
+title: Community & Resources
+description: Real-world examples, company usage, blog posts, and community resources
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Collection of real-world Copybara usage, blog posts, and community resources.
+
+## Companies Using Copybara
+
+### Google (Internal Projects)
+
+Google uses Copybara extensively to sync between their internal monorepo (Piper) and public GitHub repositories:
+
+- **[TensorFlow](https://github.com/tensorflow/tensorflow)** - ML framework synced from internal repo
+- **[gRPC](https://github.com/grpc/grpc)** - RPC framework with internal/external sync
+- **[Abseil](https://github.com/abseil/abseil-cpp)** - C++ library synced via Copybara
+- **[Protobuf](https://github.com/protocolbuffers/protobuf)** - Protocol buffers with internal development
+- **Android (AOSP)** - Components synced between internal and public repos
+
+### OpenXLA Project
+
+The [OpenXLA project documents their Copybara usage](https://openxla.org/xla/copybara) extensively:
+
+- Source of truth is Google's internal repo
+- PRs are imported internally, tested, then submitted
+- Copybara applies formatting transformations
+- PRs are closed (not merged) with equivalent commits applied
+- TSL dependency is copied into `third_party/` to prevent broken commits
+
+<Aside type="note">
+  OpenXLA's documentation includes important "quirks" about how Copybara
+  transforms code and why PRs appear closed rather than merged.
+</Aside>
+
+### MongoDB
+
+[MongoDB uses Copybara](https://github.com/mongodb/mongo/blob/master/copy.bara.sky) to sync from internal (`10gen/mongo`) to public (`mongodb/mongo`):
+
+- Excludes sensitive directories (`src/mongo/db/modules/**`, `src/third_party/private/**`)
+- Scrubs commit messages to remove internal references
+- Preserves acceptable trailers (Co-authored-by, Signed-off-by)
+- Replaces internal GitHub links with public equivalents
+
+### CUE Language
+
+[CUE uses Copybara](https://github.com/cuelang/cue/blob/master/_scripts/copy.bara.sky) for Gerrit-GitHub bidirectional sync:
+
+- Mirrors changes from Gerrit (`cue-review.googlesource.com`) to GitHub
+- Imports GitHub PRs into Gerrit for review
+- Transforms PR titles/bodies into Gerrit commit format
+
+### Hasura
+
+[Hasura documented their experience](https://hasura.io/blog/building-hasura-ci-cd-and-the-story-of-a-monorepo) using Copybara for monorepo management:
+
+**What worked:**
+
+- Automated bidirectional shadowing of PRs
+- Transformed OSS contributions to fit monorepo structure
+
+**Challenges encountered:**
+
+- Missing multi-author attribution support
+- Tool felt "too coupled with Google's workflows"
+- Had to fork Copybara to add missing functionality
+
+**Their suggestion:** Consider a simpler alternative for basic commit-by-commit transformation needs.
+
+### Pigweed/Fuchsia
+
+[Pigweed uses Copybara](https://pigweed.dev/third_party/fuchsia/) to sync Fuchsia libraries:
+
+- Files synced to `third_party/fuchsia/repo` directory
+- Copybara applies patches (e.g., replacing `__builtin_abort` with `PW_ASSERT`)
+- Avoids requiring downstream projects to clone the large Fuchsia repo
+
+## GitHub Actions Integration
+
+### Olivr/copybara-action
+
+The [copybara-action](https://github.com/Olivr/copybara-action) provides zero-config GitHub Actions integration:
+
+```yaml
+- uses: olivr/copybara-action@v1
+  with:
+    ssh_key: ${{ secrets.SSH_KEY }}
+    # Defaults work for most monorepo → public repo cases
+```
+
+**Features:**
+
+- Zero-config defaults
+- Bidirectional sync support
+- Custom Docker image support
+- Fully customizable for advanced workflows
+
+## Blog Posts & Tutorials
+
+### Official Resources
+
+- [Copybara GitHub Repository](https://github.com/google/copybara) - Source code and documentation
+- [Copybara Examples](https://github.com/google/copybara/blob/master/docs/examples.md) - Official examples
+- [Copybara Reference](https://github.com/google/copybara/blob/master/docs/reference.md) - Complete API reference
+
+### Community Tutorials
+
+- **[Moving code between GIT repositories with Copybara](https://blog.kubesimplify.com/moving-code-between-git-repositories-with-copybara)** (Kubesimplify) - Step-by-step tutorial covering monorepo to public repo sync
+- **[Copybara: A Tool for Transforming and Moving Code](https://stackfoss.medium.com/copybara-a-tool-for-transforming-and-moving-code-between-repositories-315a75502f6d)** (Medium) - Introduction and use cases
+- **[Google's Copybara reshapes large-scale code movement](https://thearabianpost.com/googles-copybara-reshapes-large-scale-code-movement/)** - Enterprise adoption overview
+
+### Example Configurations
+
+Real `copy.bara.sky` files from production:
+
+| Project   | Link                                                                               | Use Case                         |
+| --------- | ---------------------------------------------------------------------------------- | -------------------------------- |
+| MongoDB   | [copy.bara.sky](https://github.com/mongodb/mongo/blob/master/copy.bara.sky)        | Internal → public with scrubbing |
+| CUE       | [copy.bara.sky](https://github.com/cuelang/cue/blob/master/_scripts/copy.bara.sky) | Gerrit ↔ GitHub bidirectional   |
+| WireQuery | [copy.bara.sky](https://github.com/wirequery/wirequery/blob/main/copy.bara.sky)    | Open source sync                 |
+
+## Community Support
+
+### Mailing List
+
+The [Copybara OSS Google Group](https://groups.google.com/g/copybara-discuss) is the official discussion forum:
+
+- Ask questions about configuration
+- Report issues and get help
+- Discuss feature requests
+- Share experiences
+
+### GitHub Issues
+
+For bugs and feature requests:
+
+- [google/copybara Issues](https://github.com/google/copybara/issues)
+
+Common discussion topics:
+
+- Environment variables in configurations ([#125](https://github.com/google/copybara/issues/125))
+- GitHub PR to Gerrit workflows ([#249](https://github.com/google/copybara/issues/249))
+- Bidirectional sync patterns ([#140](https://github.com/google/copybara/issues/140))
+- Multiple config files ([#268](https://github.com/google/copybara/issues/268))
+
+## Lessons from Production
+
+### Common Patterns
+
+1. **Scrub sensitive content** - Use `metadata.scrubber()` to remove internal references
+2. **Preserve attribution** - Use `metadata.save_author()` and `metadata.restore_author()`
+3. **Handle internal links** - Use `core.replace()` to update URLs
+4. **Exclude directories** - Use glob excludes for private code
+
+### Known Limitations
+
+Based on community experiences:
+
+- **Google-centric design** - Some workflows assume Google's internal tooling
+- **Learning curve** - Starlark syntax requires familiarity
+- **Multi-author PRs** - May need custom handling (Hasura's experience)
+- **Transformation quirks** - Diffs may differ due to formatting (OpenXLA's experience)
+
+### Tips from Users
+
+1. **Start simple** - Use basic push workflow before adding complexity
+2. **Test with dry-run** - Always use `--dry-run` before production
+3. **Version pin** - Pin to specific Copybara versions in CI
+4. **Document internally** - Keep notes on your specific workflow
+
+## Related Tools
+
+- **[git-filter-repo](https://github.com/newren/git-filter-repo)** - For one-time history rewriting
+- **[git-subtree](https://www.atlassian.com/git/tutorials/git-subtree)** - For simpler subtree management
+- **[repo tool](https://gerrit.googlesource.com/git-repo/)** - Android's multi-repo management
+
+## Contributing
+
+If you've written about Copybara or have production experience to share:
+
+1. Open a PR to add your resource
+2. Share on the [mailing list](https://groups.google.com/g/copybara-discuss)
+3. Create a GitHub issue with your use case
+
+## Next Steps
+
+- [Getting started](/getting-started/quick-start/)
+- [Advanced use cases](/use-cases/advanced/)
+- [Troubleshooting](/troubleshooting/common-issues/)
