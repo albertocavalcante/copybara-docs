@@ -149,6 +149,7 @@ export default defineConfig({
 					{ label: 'HTTP Module', slug: 'reference/http' },
 					{ label: 'Format Module', slug: 'reference/format' },
 					{ label: 'Go Module', slug: 'reference/go' },
+					{ label: 'TOML Module', slug: 'reference/toml' },
 						{ label: 'Glob Reference', slug: 'reference/glob' },
 					],
 				},

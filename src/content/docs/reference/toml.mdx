@@ -1,0 +1,246 @@
+---
+title: TOML Module Reference
+description: Reference for toml.* functions for parsing TOML content
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+# TOML Module Reference
+
+The `toml` module provides functions for parsing TOML content in Copybara configurations. This is useful for reading configuration files like `Cargo.toml`, `pyproject.toml`, or custom TOML configurations.
+
+## toml.parse
+
+Parse a TOML string and return a queryable object:
+
+```starlark
+content = toml.parse(content = "key = \"value\"")
+```
+
+### Parameters
+
+| Parameter | Type   | Default  | Description          |
+| --------- | ------ | -------- | -------------------- |
+| `content` | string | required | TOML string to parse |
+
+### Returns
+
+Returns a `TomlContent` object that can be queried using the `get()` and `get_or_default()` methods.
+
+### Example
+
+```starlark
+parsed = toml.parse(content = """
+[package]
+name = "my-crate"
+version = "1.0.0"
+
+[dependencies]
+serde = "1.0"
+""")
+
+name = parsed.get("package.name")      # Returns "my-crate"
+version = parsed.get("package.version") # Returns "1.0.0"
+```
+
+---
+
+## TomlContent Object
+
+The object returned by `toml.parse()` provides methods to query values.
+
+### TomlContent.get
+
+Get a value by its dotted key path:
+
+```starlark
+value = content.get(key = "section.key")
+```
+
+#### Parameters
+
+| Parameter | Type   | Default  | Description                     |
+| --------- | ------ | -------- | ------------------------------- |
+| `key`     | string | required | Dotted key path (e.g., `a.b.c`) |
+
+#### Returns
+
+Returns the value at the specified key, or `None` if the key doesn't exist.
+
+### TomlContent.get_or_default
+
+Get a value with a fallback default:
+
+```starlark
+value = content.get_or_default(key = "section.key", default = "fallback")
+```
+
+#### Parameters
+
+| Parameter | Type   | Default  | Description                      |
+| --------- | ------ | -------- | -------------------------------- |
+| `key`     | string | required | Dotted key path (e.g., `a.b.c`)  |
+| `default` | any    | required | Value to return if key not found |
+
+---
+
+## Value Types
+
+TOML values are converted to Starlark types:
+
+| TOML Type | Starlark Type |
+| --------- | ------------- |
+| String    | string        |
+| Integer   | int           |
+| Float     | float         |
+| Boolean   | bool          |
+| Array     | list          |
+| Table     | dict          |
+| DateTime  | datetime      |
+
+---
+
+## Examples
+
+### Reading Cargo.toml
+
+Extract package information from a Rust crate:
+
+```starlark
+def _read_cargo_toml(ctx):
+    content = ctx.read_path(ctx.path("Cargo.toml"))
+    cargo = toml.parse(content = content)
+
+    name = cargo.get("package.name")
+    version = cargo.get("package.version")
+
+    ctx.console.info("Crate: " + name + " v" + version)
+    return ctx.success()
+
+core.dynamic_transform(impl = _read_cargo_toml)
+```
+
+### Reading pyproject.toml
+
+Extract project metadata from a Python project:
+
+```starlark
+def _check_python_version(ctx):
+    content = ctx.read_path(ctx.path("pyproject.toml"))
+    config = toml.parse(content = content)
+
+    # Handle both poetry and setuptools formats
+    name = config.get_or_default("tool.poetry.name",
+           config.get_or_default("project.name", "unknown"))
+
+    version = config.get_or_default("tool.poetry.version",
+              config.get_or_default("project.version", "0.0.0"))
+
+    ctx.console.info("Project: " + name + " v" + version)
+    return ctx.success()
+```
+
+### Conditional Transformations Based on Config
+
+Apply transformations based on TOML configuration:
+
+```starlark
+def _conditional_transform(ctx):
+    content = ctx.read_path(ctx.path("config.toml"))
+    config = toml.parse(content = content)
+
+    # Check if feature is enabled
+    if config.get_or_default("features.experimental", False):
+        # Apply experimental transformations
+        for f in ctx.run(glob(["experimental/**"])):
+            ctx.console.info("Processing: " + f.path)
+    return ctx.success()
+
+core.dynamic_transform(impl = _conditional_transform)
+```
+
+### Accessing Nested Values
+
+TOML supports nested tables accessed via dotted keys:
+
+```starlark
+# Given this TOML:
+# [database]
+# [database.primary]
+# host = "localhost"
+# port = 5432
+# [database.replica]
+# host = "replica.example.com"
+
+parsed = toml.parse(content = toml_content)
+
+primary_host = parsed.get("database.primary.host")    # "localhost"
+primary_port = parsed.get("database.primary.port")    # 5432
+replica_host = parsed.get("database.replica.host")    # "replica.example.com"
+```
+
+### Accessing Arrays
+
+Arrays are returned as Starlark lists:
+
+```starlark
+# Given this TOML:
+# [package]
+# authors = ["Alice <alice@example.com>", "Bob <bob@example.com>"]
+# keywords = ["cli", "tool"]
+
+parsed = toml.parse(content = toml_content)
+
+authors = parsed.get("package.authors")  # ["Alice <alice@example.com>", "Bob <bob@example.com>"]
+first_author = authors[0]                # "Alice <alice@example.com>"
+```
+
+### Working with Tables
+
+Tables (inline or regular) are returned as dicts:
+
+```starlark
+# Given this TOML:
+# [dependencies]
+# serde = { version = "1.0", features = ["derive"] }
+# tokio = "1.0"
+
+parsed = toml.parse(content = toml_content)
+
+deps = parsed.get("dependencies")
+# deps = {"serde": {"version": "1.0", "features": ["derive"]}, "tokio": "1.0"}
+
+serde_version = parsed.get("dependencies.serde.version")  # "1.0"
+serde_features = parsed.get("dependencies.serde.features")  # ["derive"]
+```
+
+---
+
+## Error Handling
+
+If the TOML content is invalid, `toml.parse()` will fail with a validation error:
+
+```starlark
+# This will fail with a parse error
+toml.parse(content = "invalid [ toml")
+```
+
+If a key doesn't exist, `get()` returns `None`:
+
+```starlark
+parsed = toml.parse(content = "foo = 1")
+value = parsed.get("nonexistent")  # Returns None
+```
+
+Use `get_or_default()` to provide fallback values:
+
+```starlark
+value = parsed.get_or_default("nonexistent", "default")  # Returns "default"
+```
+
+---
+
+## Next Steps
+
+- [Core Module Reference](/reference/core/) - Dynamic transformations
+- [Remote Files Module](/reference/remotefiles/) - Using TOML with archive origins
