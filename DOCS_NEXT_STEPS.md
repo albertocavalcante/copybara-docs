@@ -50,9 +50,9 @@ Created use-cases/advanced.mdx covering multi-target, vendor deps, rollout, cros
 
 One-page cheat sheet of common patterns for printing/quick lookup
 
-### 9. Module Index Table
+### ~~9. Module Index Table~~ ✓ DONE
 
-Create a table showing: Module → Functions → Purpose → Example link
+Created reference/index.mdx with all modules, functions, and quick patterns.
 
 ### 10. Video/Interactive Tutorials
 
@@ -80,6 +80,7 @@ Consider adding links to video tutorials if available
 - [x] Added state management deep-dive guide
 - [x] Expanded metadata module (scrubber, verify_match, map_references)
 - [x] Added advanced use cases (multi-target, vendor, rollout, cross-org)
+- [x] Added module index with quick reference tables
 
 ## References
 
