@@ -142,7 +142,183 @@ transformations = [
 ]
 ```
 
+## Scrubbing
+
+### metadata.scrubber
+
+Remove or replace parts of commit messages using regex:
+
+```starlark
+metadata.scrubber(
+    regex = "(^|\\n)CONFIDENTIAL:(.|\\n)*",
+    msg_if_no_match = None,
+    fail_if_no_match = False,
+    replacement = "",
+)
+```
+
+**Parameters:**
+
+| Parameter          | Type     | Description                                   |
+| ------------------ | -------- | --------------------------------------------- |
+| `regex`            | `string` | Pattern to match (multiline mode)             |
+| `msg_if_no_match`  | `string` | Default message if no match                   |
+| `fail_if_no_match` | `bool`   | Fail if pattern not found                     |
+| `replacement`      | `string` | Replacement text (supports `$1`, `$2` groups) |
+
+**Remove confidential sections:**
+
+```starlark
+# Message: "Public info\nCONFIDENTIAL:\nSecret stuff"
+# Result:  "Public info"
+metadata.scrubber("(^|\\n)CONFIDENTIAL:(.|\\n)*")
+```
+
+**Keep only tagged content:**
+
+```starlark
+# Only keep content between <public></public> tags
+metadata.scrubber(
+    regex = "^(?:\\n|.)*<public>((?:\\n|.)*)</public>(?:\\n|.)*$",
+    replacement = "$1",
+    msg_if_no_match = "Internal change.",
+)
+```
+
+### metadata.verify_match
+
+Verify commit message matches (or doesn't match) a pattern:
+
+```starlark
+metadata.verify_match(
+    regex = "<public>(.|\\n)*</public>",
+    verify_no_match = False,
+)
+```
+
+**Require public description:**
+
+```starlark
+# Fail if message doesn't contain <public> tags
+metadata.verify_match("<public>(.|\\n)*</public>")
+```
+
+**Block sensitive patterns:**
+
+```starlark
+# Fail if message contains "SECRET" or "INTERNAL"
+metadata.verify_match(
+    regex = "(SECRET|INTERNAL)",
+    verify_no_match = True,
+)
+```
+
+## Reference Mapping
+
+### metadata.map_references
+
+Update commit references to match destination format:
+
+```starlark
+metadata.map_references(
+    before = "origin/${reference}",
+    after = "destination/${reference}",
+    regex_groups = {
+        "before_ref": "[0-9a-f]+",
+        "after_ref": "[0-9]+",
+    },
+)
+```
+
+**Map GitHub to internal references:**
+
+```starlark
+# "Fixes #123" → "Fixes internal/456"
+metadata.map_references(
+    before = "#${reference}",
+    after = "internal/${reference}",
+    regex_groups = {"before_ref": "[0-9]+"},
+)
+```
+
+## Advanced Examples
+
+### Complete Open-Source Pipeline
+
+```starlark
+transformations = [
+    # Scrub confidential content
+    metadata.scrubber(
+        regex = "(^|\\n)INTERNAL:(.|\\n)*",
+    ),
+
+    # Verify no secrets leaked
+    metadata.verify_match(
+        regex = "(PASSWORD|API_KEY|SECRET)",
+        verify_no_match = True,
+    ),
+
+    # Map author emails
+    metadata.map_author({
+        "dev@internal.corp": "dev@public.example.com",
+    }),
+
+    # Add tracking header
+    metadata.add_header(
+        text = "Imported from internal: ${COPYBARA_REVISION}",
+        ignore_label_not_found = True,
+    ),
+]
+```
+
+### Bi-directional Sync with Labels
+
+```starlark
+# Export workflow
+export_transforms = [
+    metadata.save_author("INTERNAL_AUTHOR"),
+    metadata.add_header("Exported-From: internal"),
+]
+
+# Import workflow
+import_transforms = [
+    metadata.restore_author("INTERNAL_AUTHOR"),
+    metadata.expose_label("GITHUB_PR_NUMBER"),
+]
+```
+
+### Squash with Custom Format
+
+```starlark
+metadata.squash_notes(
+    prefix = "## Changes\n\n",
+    compact = False,
+    show_author = True,
+    show_ref = True,
+    oldest_first = True,
+    max = 50,
+)
+```
+
+Output:
+
+```text
+## Changes
+
+--
+abc123 by Alice <alice@example.com>:
+
+First change description
+
+Extended details here
+--
+def456 by Bob <bob@example.com>:
+
+Second change description
+```
+
 ## Next Steps
 
 - [Authoring module reference](/reference/authoring/)
+- [Labels guide](/config/labels/)
 - [Glob reference](/reference/glob/)
