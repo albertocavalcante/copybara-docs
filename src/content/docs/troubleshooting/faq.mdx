@@ -11,13 +11,17 @@ Answers to frequently asked questions, sourced from the [Copybara mailing list](
 
 ### Is Copybara stateless?
 
-**Yes and no.** Copybara itself doesn't maintain state files, but it stores state in the destination repository as a label in commit messages (`GitOrigin-RevId`).
+**Yes, by design.** Copybara stores state in the destination repository itself, not in local files.
 
-From [Issue #196](https://github.com/google/copybara/issues/196):
+From [Issue #196](https://github.com/google/copybara/issues/196), a Copybara collaborator confirmed:
 
-> The binary appears to use `~/copybara` as a folder to store local state (such as caches).
+> "Yes, it is stateless. We designed like that on purpose."
 
-This means multiple users or CI jobs can run Copybara for the same config and get consistent results, as long as they can read the destination repo's commit history.
+A contributor clarified the mechanism:
+
+> "Copybara is stateless because it relies on the `GitOrigin-RevId` trailer existing in the destination repository in order to determine revision list that needs to be migrated."
+
+This means multiple users or CI jobs can run Copybara for the same config and get consistent results. The `~/copybara` folder is only used for caching, not persistent state.
 
 **See also:** [State Management Guide](/guides/state-management/)
 
@@ -59,24 +63,38 @@ The pattern is:
 
 ### How do I use environment variables in copy.bara.sky?
 
-**You cannot directly reference environment variables in the config file.** However, you can pass values via command line.
+**You cannot directly reference environment variables** like `${VAR}` in the config file.
 
-From [Issue #125](https://github.com/google/copybara/issues/125) and [Issue #142](https://github.com/google/copybara/issues/142):
+From [Issue #125](https://github.com/google/copybara/issues/125), the recommended approaches are:
 
-> Users frequently ask about using environment variables inside the copy.bara.sky file.
+**1. Use Starlark macros** to create parameterized workflows:
 
-**Workarounds:**
+```starlark
+def make_workflow(name, destination_url):
+    return core.workflow(
+        name = name,
+        destination = git.destination(url = destination_url),
+        # ...
+    )
 
-1. Use `--git-destination-url` flag to override URLs:
+# Define multiple workflows
+make_workflow("prod", "https://github.com/org/prod")
+make_workflow("staging", "https://github.com/org/staging")
+```
 
-   ```bash
-   copybara migrate copy.bara.sky \
-     --git-destination-url "https://x-access-token:${TOKEN}@github.com/org/repo"
-   ```
+**2. Use command-line flags** to override values at runtime:
 
-2. Generate the config file from a template before running Copybara
+```bash
+copybara migrate copy.bara.sky \
+  --git-destination-url "https://x-access-token:${TOKEN}@github.com/org/repo"
+```
 
-3. Use the `--repo-timeout` and other CLI flags for dynamic values
+**3. Generate config from template** before running Copybara:
+
+```bash
+envsubst < copy.bara.sky.template > copy.bara.sky
+copybara migrate copy.bara.sky
+```
 
 ### Can I split configuration across multiple files?
 
@@ -122,13 +140,22 @@ This pattern is useful for:
 
 ### Why does my config file need to be named copy.bara.sky?
 
-**Historical convention.** The Docker image enforces this by default.
+**It's a requirement, not just convention.** The filename must be `copy.bara.sky`, but the path can vary.
 
-From [Issue #127](https://github.com/google/copybara/issues/127):
+From [Issue #127](https://github.com/google/copybara/issues/127), a Copybara maintainer clarified:
 
-> When specifying a config other than copy.bara.sky using the COPYBARA_CONFIG environment variable, the error "Copybara config file filename should be 'copy.bara.sky'" is raised.
+> "This is expected. Copybara requires that the main config file is called 'copy.bara.sky'. The path can change, but not the name."
 
-**Solution:** Use the `COPYBARA_CONFIG` environment variable or build Copybara from source without the filename restriction.
+**Valid examples:**
+
+```bash
+# These work - different paths, same filename
+copybara migrate /path/to/copy.bara.sky
+COPYBARA_CONFIG=/configs/copy.bara.sky
+
+# This does NOT work - different filename
+COPYBARA_CONFIG=my-config.sky  # Error!
+```
 
 ---
 
@@ -285,15 +312,28 @@ Then inspect the output folder before switching to `git.destination()`.
 
 ### How do I overlay/replace specific files?
 
-**Use `core.copy()` with `overwrite=True`.**
+From [Issue #43](https://github.com/google/copybara/issues/43), there are two approaches:
 
-From [Issue #43](https://github.com/google/copybara/issues/43):
+**Option 1: Glob addition + core.move** (recommended for reversibility)
 
-> A user was wondering about the best way to overlay a public README.md from an internal repo.
+Include the overlay file via glob, then move it into place:
+
+```starlark
+core.workflow(
+    # Include the overlay file explicitly
+    origin_files = glob(["**"], exclude = ["internal/**"]) + glob(["internal/README.md"]),
+    transformations = [
+        core.move("internal/README.md", "README.md"),
+    ],
+)
+```
+
+**Option 2: core.copy with overwrite**
+
+Copy a file over an existing one:
 
 ```starlark
 transformations = [
-    # Copy internal README over the synced one
     core.copy(
         before = "internal/README.md",
         after = "README.md",
@@ -301,6 +341,11 @@ transformations = [
     ),
 ]
 ```
+
+<Aside type="note">
+  Using `overwrite = True` makes the transformation non-reversible, since
+  there's no way to know the original file contents in the reverse workflow.
+</Aside>
 
 ### Where can I find examples of custom transformations?
 
