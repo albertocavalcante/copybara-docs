@@ -361,6 +361,106 @@ From [Issue #254](https://github.com/google/copybara/issues/254):
 
 ---
 
+## Workflow Modes
+
+### When should I use SQUASH vs ITERATIVE mode?
+
+From [Issue #265](https://github.com/google/copybara/issues/265):
+
+**SQUASH mode:**
+
+- Combines all commits into one
+- Better for detecting empty/duplicate changes
+- Recommended when you don't need individual commit history
+
+**ITERATIVE mode:**
+
+- Preserves individual commits
+- Can cause issues with bidirectional sync (commits may duplicate)
+- Best when combined with CHANGE_REQUEST for the reverse direction
+
+A maintainer explained:
+
+> "Copybara enforces a single source of truth for a set of files."
+
+**Recommended pattern:**
+
+```starlark
+# Source of truth → mirror (ITERATIVE)
+core.workflow(
+    name = "push",
+    mode = "ITERATIVE",
+    # ...
+)
+
+# External PRs → source of truth (CHANGE_REQUEST)
+core.workflow(
+    name = "pull",
+    mode = "CHANGE_REQUEST",
+    # ...
+)
+```
+
+### Does Copybara preserve merge commits?
+
+**No.** Copybara produces linear history by design.
+
+From [Issue #99](https://github.com/google/copybara/issues/99), a maintainer confirmed:
+
+> "Copybara moves commits as linear history."
+
+Even with `first_parent = False`, merge commits are treated as regular commits. If you need to preserve merge structure, consider:
+
+- Using `integrates` for external changes
+- Using `git.github_pr_destination` for PR-based workflows
+- Adding `metadata.expose_label("COPYBARA_INTEGRATE_REVIEW")`
+
+---
+
+## File Selection
+
+### What's the difference between origin_files and destination_files?
+
+From [Issue #56](https://github.com/google/copybara/issues/56) and [Issue #75](https://github.com/google/copybara/issues/75):
+
+**origin_files** - Controls which files are **read from source**:
+
+```starlark
+# Only sync src/ and docs/, exclude secrets
+origin_files = glob(["src/**", "docs/**"], exclude = ["**/*.secret"])
+```
+
+**destination_files** - Controls which files **can be modified in destination**:
+
+```starlark
+# Only touch files in vendor/lib/, leave everything else alone
+destination_files = glob(["vendor/lib/**"])
+```
+
+<Aside type="caution">
+  A common mistake: putting exclusions in `destination_files` instead of
+  `origin_files`. As a collaborator clarified: "The one in destination_files
+  basically is to check that you don't write those files or delete them."
+</Aside>
+
+### Why are excluded files still being copied?
+
+From [Issue #56](https://github.com/google/copybara/issues/56):
+
+**Problem:** Files added to exclude array still appear in destination.
+
+**Solution:** Make sure exclusions are in `origin_files`, not `destination_files`:
+
+```starlark
+# CORRECT - exclude in origin_files
+origin_files = glob(["**"], exclude = ["secrets/**", "*.key"])
+
+# WRONG - this only prevents writing/deleting, not reading
+destination_files = glob(["**"], exclude = ["secrets/**"])
+```
+
+---
+
 ## Troubleshooting
 
 ### Why does Copybara say "No changes to migrate"?
@@ -376,6 +476,24 @@ Copybara reads `GitOrigin-RevId` from the last destination commit and only syncs
 3. Use `--last-rev` to start from a specific commit
 
 **See also:** [Common Issues](/troubleshooting/common-issues/)
+
+### What does "No new changes to import for resolved ref" mean?
+
+From [Issue #27](https://github.com/google/copybara/issues/27):
+
+This warning appears when you specify a `--last-rev` that's already the final commit in your source repository.
+
+**Solution for importing full history:**
+
+```bash
+# First run - point to earliest commit to import
+copybara migrate copy.bara.sky --last-rev <first-commit-sha>
+
+# Subsequent runs - no flag needed, Copybara auto-detects
+copybara migrate copy.bara.sky
+```
+
+A contributor noted there's no "zero" SHA-1 reference in Git for importing from the very beginning, so you must specify the first commit you want.
 
 ### Why is Copybara stuck on the initial run?
 
