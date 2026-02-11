@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /_astro/
+Disallow: /404
+
+Sitemap: https://copybara.hallucinatedocs.com/sitemap-index.xml
