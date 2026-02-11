@@ -1,0 +1,307 @@
+---
+title: Quick Reference Card
+description: One-page cheat sheet for Copybara commands, syntax, and common patterns
+---
+
+import { Aside, Card, CardGrid } from "@astrojs/starlight/components";
+
+A printable reference for Copybara's most common commands, patterns, and syntax.
+
+## CLI Commands
+
+```bash
+# Basic migration
+copybara migrate copy.bara.sky
+
+# Specify workflow name
+copybara migrate copy.bara.sky workflow_name
+
+# Dry run (preview without changes)
+copybara migrate copy.bara.sky --dry-run
+
+# Force sync from specific commit
+copybara migrate copy.bara.sky --last-rev <sha>
+
+# Ignore no-op (don't fail if nothing to sync)
+copybara migrate copy.bara.sky --ignore-noop
+
+# Validate config syntax
+copybara validate copy.bara.sky
+
+# Show info about a workflow
+copybara info copy.bara.sky
+```
+
+## Workflow Modes
+
+| Mode                      | Commits    | Use Case                         |
+| ------------------------- | ---------- | -------------------------------- |
+| `SQUASH`                  | All → 1    | Clean history, detect duplicates |
+| `ITERATIVE`               | 1 → 1      | Preserve history                 |
+| `CHANGE_REQUEST`          | All → 1 PR | Import external contributions    |
+| `CHANGE_REQUEST_FROM_SOT` | All → 1 PR | Export to PR-based destination   |
+
+## Core Workflow Template
+
+```starlark
+core.workflow(
+    name = "default",
+    origin = git.origin(url = "https://github.com/org/source"),
+    destination = git.destination(url = "https://github.com/org/dest"),
+    origin_files = glob(["**"], exclude = ["internal/**"]),
+    destination_files = glob(["**"]),
+    authoring = authoring.pass_thru("Bot <bot@example.com>"),
+    mode = "SQUASH",
+    transformations = [
+        # transformations here
+    ],
+)
+```
+
+## Glob Syntax
+
+```starlark
+# Include everything
+glob(["**"])
+
+# Include specific paths
+glob(["src/**", "docs/**"])
+
+# Exclude patterns
+glob(["**"], exclude = ["*.secret", "internal/**"])
+
+# Combine globs (union)
+glob(["src/**"]) + glob(["README.md"])
+
+# Root-only matching
+glob(["*.md"])           # Only root-level .md files
+glob(["**/*.md"])        # All .md files recursively
+```
+
+## Common Transformations
+
+### Move Files
+
+```starlark
+# Rename file
+core.move("old/path.txt", "new/path.txt")
+
+# Move directory
+core.move("src/", "lib/")
+
+# Move everything into subdirectory
+core.move("", "vendor/lib/")
+```
+
+### Replace Text
+
+```starlark
+# Simple replacement
+core.replace(
+    before = "internal.example.com",
+    after = "public.example.com",
+)
+
+# With regex
+core.replace(
+    before = "Copyright ${year}",
+    after = "Copyright 2024",
+    regex_groups = {"year": "[0-9]+"},
+)
+
+# In specific files only
+core.replace(
+    before = "PLACEHOLDER",
+    after = "VALUE",
+    paths = glob(["**/*.md"]),
+)
+```
+
+### Scrub Commit Messages
+
+```starlark
+# Remove lines matching pattern
+metadata.scrubber("(?m)^INTERNAL:.*$")
+
+# Remove and replace
+metadata.scrubber(
+    "SECRET-[0-9]+",
+    replacement = "[REDACTED]",
+)
+
+# Keep only first line (subject)
+metadata.scrubber("\n(.|\n)*", replacement = "")
+```
+
+### Modify Metadata
+
+```starlark
+# Add prefix to message
+metadata.add_header("Imported from internal repo")
+
+# Expose labels in commit message
+metadata.expose_label("GITHUB_PR_NUMBER")
+
+# Verify pattern exists (fail if not)
+metadata.verify_match("^[A-Z]+-[0-9]+", verify_no_match = False)
+```
+
+## Authoring Modes
+
+```starlark
+# Keep original author, use default for unknowns
+authoring.pass_thru("Default <default@example.com>")
+
+# Always use default author
+authoring.overwrite("Bot <bot@example.com>")
+
+# Map authors with allowlist
+authoring.allowed(
+    default = "Bot <bot@example.com>",
+    allowlist = ["user@company.com", "other@company.com"],
+)
+
+# Map authors with whitelist
+authoring.whitelisted(
+    default = "Bot <bot@example.com>",
+    whitelist = ["user@company.com"],
+)
+```
+
+## Origins & Destinations
+
+### Git
+
+```starlark
+# Basic git
+git.origin(url = "https://github.com/org/repo", ref = "main")
+git.destination(url = "https://github.com/org/repo", push = "main")
+
+# With submodules
+git.origin(url = "...", submodules = "YES")
+
+# First parent only (skip merge commits)
+git.origin(url = "...", first_parent = True)
+```
+
+### GitHub
+
+```starlark
+# GitHub PR origin (for importing PRs)
+git.github_pr_origin(
+    url = "https://github.com/org/repo",
+    use_merge = True,
+)
+
+# GitHub PR destination (create PRs)
+git.github_pr_destination(
+    url = "https://github.com/org/repo",
+    destination_ref = "main",
+)
+```
+
+### Gerrit
+
+```starlark
+git.gerrit_destination(
+    url = "https://review.example.com/repo",
+    fetch = "master",
+    push_to_refs_for = "master",
+)
+```
+
+### Folder (Testing)
+
+```starlark
+# Output to local folder
+folder.destination()
+
+# Read from local folder
+folder.origin()
+```
+
+## State Tracking Labels
+
+| Label                       | Purpose                                  |
+| --------------------------- | ---------------------------------------- |
+| `GitOrigin-RevId`           | Default state label (last synced commit) |
+| `custom_rev_id = "X-Id"`    | Use custom label name                    |
+| `GITHUB_PR_NUMBER`          | PR number when using github_pr_origin    |
+| `COPYBARA_INTEGRATE_REVIEW` | For integrating external changes         |
+
+## Environment Variables (Docker)
+
+```bash
+COPYBARA_CONFIG=copy.bara.sky
+COPYBARA_WORKFLOW=default
+COPYBARA_SOURCEREF=main
+COPYBARA_OPTIONS="--ignore-noop"
+COPYBARA_SUBCOMMAND=migrate
+```
+
+## Common Patterns
+
+### Private → Public Sync
+
+```starlark
+core.workflow(
+    origin = git.origin(url = "private-repo"),
+    destination = git.destination(url = "public-repo"),
+    origin_files = glob(["**"], exclude = [
+        "internal/**",
+        "**/*.secret",
+        ".github/workflows/**",
+    ]),
+    mode = "ITERATIVE",
+    transformations = [
+        metadata.scrubber("INTERNAL:.*"),
+        core.replace(before = "internal.co", after = "public.co"),
+    ],
+)
+```
+
+### Import External PRs
+
+```starlark
+core.workflow(
+    name = "import-pr",
+    origin = git.github_pr_origin(url = "public-repo"),
+    destination = git.destination(url = "private-repo"),
+    mode = "CHANGE_REQUEST",
+    authoring = authoring.pass_thru("Bot <bot@co.com>"),
+)
+```
+
+### Monorepo Extraction
+
+```starlark
+core.workflow(
+    origin_files = glob(["packages/mylib/**"]),
+    transformations = [
+        core.move("packages/mylib/", ""),
+    ],
+)
+```
+
+## Quick Debugging
+
+```bash
+# Validate config
+copybara validate copy.bara.sky
+
+# Dry run to see what would happen
+copybara migrate copy.bara.sky --dry-run
+
+# Use folder.destination() to inspect output locally
+# Change destination to folder.destination() temporarily
+
+# Check state label in destination
+git log --oneline | grep GitOrigin-RevId
+
+# Force re-sync from specific commit
+copybara migrate copy.bara.sky --last-rev <sha> --force
+```
+
+<Aside type="tip">
+  Print this page (Ctrl/Cmd+P) for a handy desk reference!
+</Aside>

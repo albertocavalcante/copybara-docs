@@ -1,0 +1,609 @@
+---
+title: Real-World Examples
+description: Deep dive into how MongoDB, CUE, and other projects use Copybara in production
+---
+
+import { Aside, Badge } from "@astrojs/starlight/components";
+
+Learn from production Copybara configurations used by major open-source projects. These examples demonstrate battle-tested patterns for common use cases.
+
+## MongoDB: Private-to-Public Sync
+
+MongoDB uses Copybara to sync their internal repository (`10gen/mongo`) to the public GitHub repository (`mongodb/mongo`). This is a classic internal → public open-sourcing pattern.
+
+**Source of truth:** Internal repo (`10gen/mongo`)
+
+**Flow:** Internal → Public (one-way)
+
+Development happens in the private `10gen/mongo` repository. Copybara then syncs approved changes to the public `mongodb/mongo` repository, filtering out internal-only content and scrubbing commit messages.
+
+**Source:** [mongodb/mongo/copy.bara.sky](https://github.com/mongodb/mongo/blob/master/copy.bara.sky)
+
+### Configuration Overview
+
+```starlark
+sourceUrl = "https://github.com/10gen/mongo.git"
+prodUrl = "https://github.com/mongodb/mongo.git"
+testUrl = "https://github.com/10gen/mongo-copybara.git"
+
+def make_workflow(workflow_name, destination_url, branch):
+    core.workflow(
+        name = workflow_name,
+        origin = git.origin(url = sourceUrl, ref = branch),
+        destination = git.destination(
+            url = destination_url,
+            fetch = branch,
+            push = branch,
+        ),
+        origin_files = glob(["**"], exclude = [
+            "src/mongo/db/modules/**",
+            "buildscripts/modules/**",
+            ".github/workflows/**",
+            "src/third_party/private/**",
+            ".augment/**",
+            ".cursor/**",
+            "AGENTS.md",
+            ".github/CODEOWNERS",
+        ]),
+        authoring = authoring.pass_thru("MongoDB <mongodb@mongodb.com>"),
+        mode = "ITERATIVE",
+        transformations = [
+            # Commit message scrubbing (see below)
+            # URL replacement (see below)
+        ],
+    )
+
+make_workflow("prod", prodUrl, "master")
+make_workflow("test", testUrl, testBranch)
+```
+
+### Key Patterns
+
+#### 1. Reusable Workflow Function
+
+MongoDB defines a `make_workflow()` function to create both production and test workflows with the same configuration. This ensures consistency and makes testing easier.
+
+```starlark
+def make_workflow(workflow_name, destination_url, branch):
+    core.workflow(
+        name = workflow_name,
+        # ... configuration
+    )
+
+# Production workflow
+make_workflow("prod", prodUrl, "master")
+
+# Test workflow (validates config before prod)
+make_workflow("test", testUrl, testBranch)
+```
+
+<Aside type="tip">
+  Always create a test workflow pointing to a scratch repository. Run it before
+  production to catch configuration errors.
+</Aside>
+
+#### 2. Strategic File Exclusions
+
+MongoDB excludes several categories of internal content:
+
+```starlark
+origin_files = glob(["**"], exclude = [
+    # Proprietary modules
+    "src/mongo/db/modules/**",
+    "buildscripts/modules/**",
+
+    # Internal CI/CD
+    ".github/workflows/**",
+    ".github/CODEOWNERS",
+
+    # Private dependencies
+    "src/third_party/private/**",
+
+    # AI assistant configs (internal tooling)
+    ".augment/**",
+    ".cursor/**",
+    "AGENTS.md",
+])
+```
+
+#### 3. Sophisticated Commit Message Scrubbing
+
+MongoDB uses a multi-step scrubbing process to clean commit messages while preserving important trailers:
+
+```starlark
+transformations = [
+    # Step 1: Keep trailers, blank everything else after first line
+    metadata.scrubber(
+        "\n((?:Co-authored-by|Signed-off-by|Reviewed-by): .*)?.*",
+        replacement = "\n$1",
+    ),
+
+    # Step 2: Collapse multiple newlines
+    metadata.scrubber("\n+", replacement = "\n"),
+
+    # Step 3: Remove trailing newline
+    metadata.scrubber("\n$", replacement = ""),
+
+    # Step 4: Add blank line between subject and trailers
+    metadata.scrubber("(^.*?\n)((?:\n|.)*)", replacement = "$1\n$2"),
+]
+```
+
+**Before:**
+
+```
+Fix authentication bug
+
+This fixes an internal issue reported in JIRA-1234.
+See internal doc at go/auth-fix for details.
+
+Co-authored-by: Alice <alice@mongodb.com>
+Reviewed-by: Bob <bob@mongodb.com>
+```
+
+**After:**
+
+```
+Fix authentication bug
+
+Co-authored-by: Alice <alice@mongodb.com>
+Reviewed-by: Bob <bob@mongodb.com>
+```
+
+#### 4. URL Replacement
+
+Internal links are rewritten to point to the public repository:
+
+```starlark
+core.replace(
+    before = "https://github.com/10gen/mongo",
+    after = "https://github.com/mongodb/mongo",
+    paths = glob(["**/*.md"]),
+)
+```
+
+### Lessons from MongoDB
+
+1. **Test before production** - Use a separate test workflow
+2. **Preserve attribution** - Keep `Co-authored-by` and similar trailers
+3. **Strip internal details** - Remove JIRA references, internal docs links
+4. **ITERATIVE mode** - Preserve individual commits for better history
+5. **Exclude AI configs** - `.cursor/`, `.augment/` are internal tooling
+
+---
+
+## CUE: Gerrit ↔ GitHub Bidirectional Sync <Badge text="Archived" variant="caution" />
+
+The CUE project uses Copybara to bridge between Gerrit (primary code review) and GitHub (community contributions). This demonstrates the bidirectional sync pattern.
+
+**Source of truth:** Gerrit (`cue-review.googlesource.com`)
+
+**Flow:** Gerrit → GitHub (mirror) + GitHub PRs → Gerrit (import)
+
+Core development and code review happens on Gerrit. Changes are mirrored to GitHub for visibility. External contributors submit PRs on GitHub, which are imported to Gerrit for review.
+
+<Aside type="note">
+  The `cuelang/cue` repository is now archived—CUE moved to
+  [cue-lang/cue](https://github.com/cue-lang/cue). This example remains valuable
+  as a reference for Gerrit↔GitHub integration patterns.
+</Aside>
+
+**Source:** [cuelang/cue/\_scripts/copy.bara.sky](https://github.com/cuelang/cue/blob/master/_scripts/copy.bara.sky)
+
+### Configuration Overview
+
+```starlark
+github_url = "https://github.com/cuelang/cue.git"
+gerrit_url = "https://cue-review.googlesource.com/cue"
+
+# Mirror Gerrit → GitHub (all refs)
+git.mirror(
+    name = "github",
+    origin = gerrit_url,
+    destination = github_url,
+    refspecs = ["refs/*"],
+    prune = False,
+)
+
+# Import GitHub PRs → Gerrit
+core.workflow(
+    name = "github-pr",
+    origin = git.github_pr_origin(
+        url = github_url,
+        baseline_from_branch = True,
+        use_merge = True,
+    ),
+    destination = git.gerrit_destination(
+        url = gerrit_url,
+        fetch = "master",
+        push_to_refs_for = "master%hashtag=github-pr",
+    ),
+    authoring = authoring.pass_thru("CUE team <no-reply@google.com>"),
+    mode = "CHANGE_REQUEST",
+    transformations = [
+        metadata.replace_message(
+            "${GITHUB_PR_TITLE}\n\n" +
+            "${GITHUB_PR_BODY}\n\n" +
+            "Closes #${GITHUB_PR_NUMBER}\n" +
+            "https://github.com/cuelang/cue/pull/${GITHUB_PR_NUMBER}",
+        ),
+    ],
+)
+```
+
+### Key Patterns
+
+#### 1. Simple Mirroring with `git.mirror`
+
+For Gerrit → GitHub sync, CUE uses `git.mirror` instead of `core.workflow`. This is simpler and faster for pure mirroring:
+
+```starlark
+git.mirror(
+    name = "github",
+    origin = gerrit_url,
+    destination = github_url,
+    refspecs = ["refs/*"],    # Mirror all refs
+    prune = False,            # Don't delete refs not in origin
+)
+```
+
+<Aside type="note">
+  Use `git.mirror` when you need exact replication without transformations. It's
+  faster than `core.workflow` for this use case.
+</Aside>
+
+#### 2. Importing GitHub PRs to Gerrit
+
+External contributions come via GitHub PRs but need to go through Gerrit review:
+
+```starlark
+origin = git.github_pr_origin(
+    url = github_url,
+    baseline_from_branch = True,  # Use branch as baseline
+    use_merge = True,             # Include merge commits
+)
+
+destination = git.gerrit_destination(
+    url = gerrit_url,
+    fetch = "master",
+    push_to_refs_for = "master%hashtag=github-pr",  # Tag with hashtag
+)
+```
+
+The `%hashtag=github-pr` suffix adds a hashtag to Gerrit changes for tracking.
+
+#### 3. Commit Message Transformation
+
+PR metadata is formatted into a proper commit message:
+
+```starlark
+metadata.replace_message(
+    "${GITHUB_PR_TITLE}\n\n" +
+    "${GITHUB_PR_BODY}\n\n" +
+    "Closes #${GITHUB_PR_NUMBER}\n" +
+    "https://github.com/cuelang/cue/pull/${GITHUB_PR_NUMBER}",
+)
+```
+
+**Variables available from `github_pr_origin`:**
+
+- `${GITHUB_PR_TITLE}` - PR title
+- `${GITHUB_PR_BODY}` - PR description
+- `${GITHUB_PR_NUMBER}` - PR number
+- `${GITHUB_PR_URL}` - Full PR URL
+- `${GITHUB_PR_USER}` - PR author username
+
+#### 4. CHANGE_REQUEST Mode
+
+For PR imports, `CHANGE_REQUEST` mode creates a single review request regardless of how many commits are in the PR:
+
+```starlark
+mode = "CHANGE_REQUEST",
+```
+
+### Lessons from CUE
+
+1. **Use `git.mirror` for simple replication** - No workflow needed
+2. **Hashtags for tracking** - Gerrit's `%hashtag=` feature tracks imported PRs
+3. **Preserve PR context** - Link back to original GitHub PR
+4. **CHANGE_REQUEST for imports** - One review per PR, not per commit
+
+---
+
+## WireQuery: Enterprise ↔ Community Bidirectional
+
+WireQuery demonstrates a true bidirectional sync between an enterprise edition and community edition, with path transformations and PR imports.
+
+**Source of truth:** Enterprise repo (`wirequery-ee`)
+
+**Flow:** Enterprise → Community (push) + Community PRs → Enterprise (import)
+
+The enterprise edition is the source of truth. Community contributions via PR are imported back to enterprise with proper author attribution.
+
+**Source:** [wirequery/wirequery/copy.bara.sky](https://github.com/wirequery/wirequery/blob/main/copy.bara.sky)
+
+### Configuration Overview
+
+```starlark
+destinationUrl = "ssh://git@github.com/wirequery/wirequery.git"
+sotUrl = "ssh://git@github.com/wirequery/wirequery-ee.git"
+
+files = glob(["**"], exclude = ["**/ee/**", ".github/workflows/push-to-public-repo.yml"])
+
+code_transformations = [
+    core.replace(
+        before = "/ee/",
+        after = "/ce/",
+        paths = glob(["**"], exclude = ["**/ce/**", "**/ee/**", "copy.bara.sky"]),
+    ),
+]
+
+# Push: Enterprise → Community
+core.workflow(
+    name = "push",
+    origin = git.origin(url = sotUrl, ref = "main"),
+    destination = git.github_destination(url = destinationUrl, push = "main"),
+    origin_files = files,
+    authoring = authoring.pass_thru("Wouter Nederhof <wouter.nederhof@gmail.com>"),
+    mode = "ITERATIVE",
+    transformations = [
+        metadata.restore_author("ORIGINAL_AUTHOR", search_all_changes = True),
+        metadata.expose_label("COPYBARA_INTEGRATE_REVIEW"),
+    ] + code_transformations,
+)
+
+# Pull: Community PRs → Enterprise
+core.workflow(
+    name = "pr",
+    origin = git.github_pr_origin(url = destinationUrl, branch = "main"),
+    destination = git.github_pr_destination(url = sotUrl, destination_ref = "main"),
+    destination_files = files,
+    origin_files = files,
+    authoring = authoring.pass_thru("Wouter Nederhof <wouter.nederhof@gmail.com>"),
+    mode = "CHANGE_REQUEST",
+    set_rev_id = False,
+    transformations = [
+        metadata.save_author("ORIGINAL_AUTHOR"),
+        metadata.expose_label("GITHUB_PR_NUMBER", new_name = "Closes", separator = "...#"),
+    ] + core.reverse(code_transformations),
+)
+```
+
+### Key Patterns
+
+#### 1. Path Transformations with `core.reverse`
+
+WireQuery converts `/ee/` paths to `/ce/` when pushing to community. The clever part: they use `core.reverse()` to automatically reverse this when importing PRs:
+
+```starlark
+code_transformations = [
+    core.replace(before = "/ee/", after = "/ce/", ...),
+]
+
+# Push workflow uses transformations as-is
+transformations = [...] + code_transformations
+
+# PR workflow reverses them (/ce/ → /ee/)
+transformations = [...] + core.reverse(code_transformations)
+```
+
+#### 2. Author Preservation Across Repos
+
+When pushing to community, authors are restored from a label. When importing PRs, authors are saved to that label:
+
+```starlark
+# Push: restore original author from label
+metadata.restore_author("ORIGINAL_AUTHOR", search_all_changes = True)
+
+# PR import: save author to label for future reference
+metadata.save_author("ORIGINAL_AUTHOR")
+```
+
+#### 3. PR-to-PR Workflow
+
+Unlike CUE (PR → commit), WireQuery creates PRs on both sides:
+
+```starlark
+origin = git.github_pr_origin(url = destinationUrl)
+destination = git.github_pr_destination(url = sotUrl, destination_ref = "main")
+```
+
+#### 4. Smart File Selection
+
+Excludes enterprise-only content and the CI workflow that triggers Copybara itself:
+
+```starlark
+files = glob(["**"], exclude = [
+    "**/ee/**",                                    # Enterprise-only code
+    ".github/workflows/push-to-public-repo.yml",  # Avoid recursion
+])
+```
+
+### Lessons from WireQuery
+
+1. **`core.reverse()` for bidirectional transforms** - Write once, reverse automatically
+2. **Author labels for attribution** - `save_author`/`restore_author` preserve contributors
+3. **PR-to-PR for review** - Both sides get review workflows
+4. **Exclude your Copybara workflow** - Prevent infinite loops
+
+---
+
+## Google Projects: copybara-service Bot
+
+Many Google open-source projects use an internal Copybara service that syncs from Google's internal Piper monorepo to GitHub. You'll recognize these by commits from `copybara-service[bot]`.
+
+**Projects using copybara-service:**
+
+- [google/gvisor](https://github.com/google/gvisor) - Container sandbox
+- [google/brotli](https://github.com/google/brotli) - Compression library
+- [google/perfetto](https://github.com/google/perfetto) - Performance tracing
+- [grpc/grpc](https://github.com/grpc/grpc) - RPC framework
+- [google-ai-edge/model-explorer](https://github.com/google-ai-edge/model-explorer) - AI model visualization
+
+These projects don't have public `copy.bara.sky` files because the configuration lives in Google's internal infrastructure. However, you can observe the patterns:
+
+- **Commit format:** Clean, single-line subjects
+- **Labels:** `GitOrigin-RevId` or `PiperOrigin-RevId` pointing to internal commits
+- **Authoring:** Original authors preserved when possible
+
+<Aside type="note">
+  While you can't see Google's internal Copybara configs, the MongoDB and
+  WireQuery examples demonstrate the same patterns used at scale.
+</Aside>
+
+---
+
+## Pattern Comparison
+
+| Aspect               | MongoDB                   | CUE (archived)           | WireQuery                   |
+| -------------------- | ------------------------- | ------------------------ | --------------------------- |
+| **Source of truth**  | Internal (`10gen/mongo`)  | Gerrit                   | Enterprise (`wirequery-ee`) |
+| **Direction**        | Internal → Public         | Gerrit ↔ GitHub         | Enterprise ↔ Community     |
+| **Mode**             | ITERATIVE                 | CHANGE_REQUEST + mirror  | ITERATIVE + CHANGE_REQUEST  |
+| **Primary use**      | Open-sourcing             | Community contributions  | Dual-license distribution   |
+| **Message handling** | Scrub body, keep trailers | Replace with PR metadata | Author labels               |
+| **File handling**    | Heavy exclusions          | No exclusions            | Path transformations        |
+| **Reversibility**    | One-way                   | Two workflows            | `core.reverse()` transforms |
+
+## Applying These Patterns
+
+### For Internal → Public (MongoDB pattern)
+
+```starlark
+core.workflow(
+    origin_files = glob(["**"], exclude = [
+        "internal/**",
+        ".github/workflows/**",
+        "**/INTERNAL_*.md",
+    ]),
+    mode = "ITERATIVE",
+    transformations = [
+        metadata.scrubber("(?m)^INTERNAL:.*$"),
+        metadata.scrubber("JIRA-[0-9]+", replacement = "[internal]"),
+        core.replace(
+            before = "internal.company.com",
+            after = "github.com/company",
+            paths = glob(["**/*.md"]),
+        ),
+    ],
+)
+```
+
+### For GitHub ↔ Code Review System (CUE pattern)
+
+```starlark
+# Mirror: Internal → GitHub
+git.mirror(
+    name = "mirror-to-github",
+    origin = "internal-url",
+    destination = "github-url",
+    refspecs = ["refs/heads/*", "refs/tags/*"],
+)
+
+# Import: GitHub PRs → Internal
+core.workflow(
+    name = "import-prs",
+    origin = git.github_pr_origin(url = "github-url"),
+    destination = git.destination(url = "internal-url"),
+    mode = "CHANGE_REQUEST",
+    transformations = [
+        metadata.replace_message(
+            "${GITHUB_PR_TITLE}\n\nFrom: ${GITHUB_PR_URL}",
+        ),
+    ],
+)
+```
+
+## More Examples
+
+### Public Configurations with copy.bara.sky
+
+**Monorepo → Multi-repo Publishing:**
+
+- **Airbnb Viaduct** — Dynamic workflow generation for demo apps
+  [copy.bara.sky](https://github.com/airbnb/viaduct/blob/main/.github/copybara/copy.bara.sky)
+  _Uses list comprehension to generate workflows for multiple apps_
+
+- **Lightspark JS-SDK** — Bidirectional monorepo sync with README transformation
+  [copy.bara.sky](https://github.com/lightsparkdev/js-sdk/blob/main/copy.bara.sky)
+  _Syncs `js/` directory, transforms README-PUBLIC.md → README.md_
+
+- **GirlsOfSteelRobotics** — Bidirectional sync between robotics teams
+  [copy.bara.sky](https://github.com/GirlsOfSteelRobotics/GirlsOfSteelFRC/blob/main/copy.bara.sky)
+  _Reusable `bidirectional_workflow()` function pattern_
+
+**Enterprise/Internal → Public:**
+
+- **MongoDB** — Internal → Public with commit scrubbing
+  [copy.bara.sky](https://github.com/mongodb/mongo/blob/master/copy.bara.sky)
+  _4-step metadata scrubber, preserves trailers_
+
+- **WireQuery** — Enterprise ↔ Community with `core.reverse()`
+  [copy.bara.sky](https://github.com/wirequery/wirequery/blob/main/copy.bara.sky)
+  _Converts `/ee/` → `/ce/` paths, bidirectional_
+
+- **Confluent Kafka-Bazel** — Bazel overlay for Apache Kafka
+  [copy.bara.sky](https://github.com/confluentinc/kafka-bazel/blob/main/copy.bara.sky)
+  _Complex BUILD file sync with proprietary exclusions_
+
+**Vendoring Dependencies:**
+
+- **sqlelf** — Vendors pyelftools library
+  [copy.bara.sky](https://github.com/fzakaria/sqlelf/blob/main/copy.bara.sky)
+  _Simple vendor pattern with `folder.destination()`_
+
+- **Pigweed** — Third-party Fuchsia library sync
+  [Documentation](https://pigweed.dev/third_party/fuchsia/)
+
+**Archived (still valuable):** <Badge text="Archived" variant="caution" size="small" />
+
+- **CUE** — Gerrit ↔ GitHub bidirectional
+  [copy.bara.sky](https://github.com/cuelang/cue/blob/master/_scripts/copy.bara.sky)
+  _Moved to [cue-lang/cue](https://github.com/cue-lang/cue)_
+
+- **Bazel rules_webtesting** — Folder-based release workflow
+  [copy.bara.sky](https://github.com/bazelbuild/rules_webtesting/blob/master/tools/copy.bara.sky)
+  _`folder.origin()` + `folder.destination()` pattern_
+
+### Google Projects (copybara-service bot)
+
+These sync from Google's internal Piper monorepo. No public configs, but you can observe patterns via commit history:
+
+| Project                                                                         | Type              | Notes                                  |
+| ------------------------------------------------------------------------------- | ----------------- | -------------------------------------- |
+| [tensorflow/tensorflow](https://github.com/tensorflow/tensorflow)               | ML framework      | Google3 to GitHub                      |
+| [angular/angular](https://github.com/angular/angular)                           | Web framework     | References `angular2/copy.bara.sky`    |
+| [bazelbuild/bazel](https://github.com/bazelbuild/bazel)                         | Build system      | `devtools/blaze/bazel/admin/copybara/` |
+| [grpc/grpc](https://github.com/grpc/grpc)                                       | RPC framework     | Multi-language sync                    |
+| [protocolbuffers/protobuf](https://github.com/protocolbuffers/protobuf)         | Serialization     | `PiperOrigin-RevId` labels             |
+| [chromium/chromium](https://github.com/chromium/chromium)                       | Browser           | Cronet → AOSP sync                     |
+| [google/gvisor](https://github.com/google/gvisor)                               | Container sandbox | `PiperOrigin-RevId`                    |
+| [google/perfetto](https://github.com/google/perfetto)                           | Tracing           | Chromium integration                   |
+| [google-deepmind/natural-plan](https://github.com/google-deepmind/natural-plan) | Research          | Piper → Gerrit                         |
+| [youtube/cobalt](https://github.com/youtube/cobalt)                             | HTML5 container   | Component sync                         |
+
+### Other Organizations Using Copybara
+
+| Organization       | Use Case               | Link                                                                      |
+| ------------------ | ---------------------- | ------------------------------------------------------------------------- |
+| **Pixie (CNCF)**   | K8s observability sync | [pixie-io/pixie](https://github.com/pixie-io/pixie)                       |
+| **Screenshotbot**  | OSS publishing         | [screenshotbot-oss](https://github.com/screenshotbot/screenshotbot-oss)   |
+| **Recidiviz**      | Public mirror sync     | [pulse-data](https://github.com/Recidiviz/pulse-data)                     |
+| **Eclipse Score**  | Fork management        | [eclipse-score/score](https://github.com/eclipse-score/score)             |
+| **Twitter/X**      | Internal fork          | [twitter-forks/copybara](https://github.com/twitter-forks/copybara)       |
+| **Hazelcast**      | GitHub Actions         | [hazelcast/copybara-action](https://github.com/hazelcast/copybara-action) |
+| **Groupe Renault** | GitLab sync            | Internal → public                                                         |
+
+### Copybara Tooling
+
+| Tool                             | Description               | Link                                                          |
+| -------------------------------- | ------------------------- | ------------------------------------------------------------- |
+| **Olivr/copybara-action**        | Zero-config GitHub Action | [GitHub](https://github.com/Olivr/copybara-action)            |
+| **Olivr/nx-copybara**            | Nx monorepo example       | [GitHub](https://github.com/Olivr/nx-copybara)                |
+| **rules_copybara**               | Bazel rules for Copybara  | [GitHub](https://github.com/albertocavalcante/rules_copybara) |
+| **anipos/copybara-docker-image** | Docker image              | [GitHub](https://github.com/anipos/copybara-docker-image)     |
+
+<Aside type="tip">
+  Found a great Copybara config in the wild? Share it on the [mailing
+  list](https://groups.google.com/g/copybara-discuss)!
+</Aside>

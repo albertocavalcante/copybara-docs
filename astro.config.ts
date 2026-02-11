@@ -77,6 +77,7 @@ export default defineConfig({
 						{ label: 'Performance & Scaling', slug: 'guides/performance' },
 						{ label: 'State Management', slug: 'guides/state-management' },
 						{ label: 'Community & Resources', slug: 'guides/community-resources' },
+						{ label: 'Real-World Examples', slug: 'guides/real-world-examples' },
 						{
 							label: 'Unsupported Platforms',
 							collapsed: true,
@@ -155,6 +156,7 @@ export default defineConfig({
 				{
 					label: 'Reference',
 					items: [
+						{ label: 'Quick Reference', slug: 'reference/quick-reference' },
 						{ label: 'Module Index', slug: 'reference' },
 						{ label: 'Glossary', slug: 'reference/glossary' },
 						{ label: 'CLI Reference', slug: 'reference/cli' },

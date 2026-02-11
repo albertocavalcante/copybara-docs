@@ -37,13 +37,18 @@ Living document tracking documentation improvements. Updated as work progresses.
 
 Nothing currently in progress.
 
+### Just Completed
+
+- [x] **Quick Reference Card** - One-page cheat sheet (reference/quick-reference.mdx)
+- [x] **Real-World Examples** - MongoDB and CUE deep dives (guides/real-world-examples.mdx)
+
 ---
 
 ## Future Ideas
 
 ### Documentation Improvements
 
-1. **Quick Reference Card** - One-page cheat sheet for printing
+1. ~~**Quick Reference Card** - One-page cheat sheet for printing~~ ✓ Done
 2. **Jenkins Pipeline Examples** - Complement GitLab CI guide
 3. **Troubleshooting Decision Tree** - Visual flowchart for common issues
 4. **Migration Guides** - From git-filter-repo, git-subtree, etc.
@@ -54,9 +59,9 @@ Nothing currently in progress.
 Based on community research, consider adding:
 
 1. **OpenXLA Quirks Deep Dive** - Document the PR close vs merge behavior
-2. **Gerrit Integration Guide** - Expand on CUE's Gerrit↔GitHub pattern
+2. ~~**Gerrit Integration Guide** - Expand on CUE's Gerrit↔GitHub pattern~~ ✓ Done (in real-world-examples)
 3. **Hasura Lessons Learned** - Multi-author attribution workarounds
-4. **MongoDB Pattern** - Internal→public with scrubbing best practices
+4. ~~**MongoDB Pattern** - Internal→public with scrubbing best practices~~ ✓ Done
 
 ### New Use Cases
 
@@ -114,9 +119,9 @@ Based on community research, consider adding:
 
 | Metric          | Count |
 | --------------- | ----- |
-| Total pages     | 72    |
-| Reference pages | 18    |
-| Guide pages     | 9     |
+| Total pages     | 74    |
+| Reference pages | 19    |
+| Guide pages     | 10    |
 | Config pages    | 5     |
 | Troubleshooting | 3     |
 | Use case pages  | 6     |
