@@ -20,7 +20,7 @@ Living document tracking documentation improvements. Updated as work progresses.
 - [x] **Advanced Use Cases** - multi-target, vendor, rollout, cross-org
 - [x] **Module Index** - Quick reference tables in reference/index.mdx
 - [x] **Community Resources** - Blog posts, company examples, production configs
-- [x] **FAQ Page** - 20+ questions with links to original threads/issues
+- [x] **FAQ Page** - 20+ questions with links to original threads/issues (verified against sources, see FAQ_SOURCES.md)
 - [x] **Syntax Highlighting** - .gitattributes trick for GitHub
 
 ### Previous Session

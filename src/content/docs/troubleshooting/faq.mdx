@@ -27,17 +27,22 @@ This means multiple users or CI jobs can run Copybara for the same config and ge
 
 ### Can I use a custom state label instead of GitOrigin-RevId?
 
-**Yes.** Use the `experimental_custom_rev_id` parameter in `core.workflow`.
+**Yes.** Use the `custom_rev_id` parameter in `core.workflow`.
 
 From [Custom label for copybara state](https://groups.google.com/g/copybara-discuss/c/h8bO8G0Udog):
 
 > There's `experimental_custom_rev_id` setting in `core.workflow` which lets you customize the revision ID.
 
+<Aside type="caution">
+  The parameter was renamed from `experimental_custom_rev_id` to
+  `custom_rev_id`. The old name is deprecated and scheduled for removal.
+</Aside>
+
 ```starlark
 core.workflow(
     name = "default",
     # Use custom label instead of GitOrigin-RevId
-    experimental_custom_rev_id = "X-Backport-Id",
+    custom_rev_id = "X-Backport-Id",
     # ...
 )
 ```
@@ -163,15 +168,18 @@ COPYBARA_CONFIG=my-config.sky  # Error!
 
 ### Is there an official Docker image?
 
-**Yes.** Available at `gcr.io/copybara-docker/copybara` or build from source.
+**No official image is published by Google.** You can build from source or use community images.
 
 From [Issue #82](https://github.com/google/copybara/issues/82):
 
 > It would be super helpful to have a copy of the latest master or release published as a docker image.
 
+The issue remains open. Google has not published an official image.
+
 **Community alternatives:**
 
 - [Olivr/copybara-action](https://github.com/Olivr/copybara-action) - Builds nightly images
+- `gcr.io/copybara-docker/copybara` - Community-maintained image
 - Build your own from the Dockerfile in the repo
 
 ### How do I pass command line arguments with Docker?
