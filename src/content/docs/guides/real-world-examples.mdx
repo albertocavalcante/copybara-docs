@@ -570,18 +570,18 @@ core.workflow(
 
 These sync from Google's internal Piper monorepo. No public configs, but you can observe patterns via commit history:
 
-| Project                                                                         | Type              | Notes                                  |
-| ------------------------------------------------------------------------------- | ----------------- | -------------------------------------- |
-| [tensorflow/tensorflow](https://github.com/tensorflow/tensorflow)               | ML framework      | Google3 to GitHub                      |
-| [angular/angular](https://github.com/angular/angular)                           | Web framework     | References `angular2/copy.bara.sky`    |
-| [bazelbuild/bazel](https://github.com/bazelbuild/bazel)                         | Build system      | `devtools/blaze/bazel/admin/copybara/` |
-| [grpc/grpc](https://github.com/grpc/grpc)                                       | RPC framework     | Multi-language sync                    |
-| [protocolbuffers/protobuf](https://github.com/protocolbuffers/protobuf)         | Serialization     | `PiperOrigin-RevId` labels             |
-| [chromium/chromium](https://github.com/chromium/chromium)                       | Browser           | Cronet → AOSP sync                     |
-| [google/gvisor](https://github.com/google/gvisor)                               | Container sandbox | `PiperOrigin-RevId`                    |
-| [google/perfetto](https://github.com/google/perfetto)                           | Tracing           | Chromium integration                   |
-| [google-deepmind/natural-plan](https://github.com/google-deepmind/natural-plan) | Research          | Piper → Gerrit                         |
-| [youtube/cobalt](https://github.com/youtube/cobalt)                             | HTML5 container   | Component sync                         |
+| Project                                                                         | Type              | Notes                                                                                                        |
+| ------------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------ |
+| [tensorflow/tensorflow](https://github.com/tensorflow/tensorflow)               | ML framework      | Google3 to GitHub                                                                                            |
+| [angular/angular](https://github.com/angular/angular)                           | Web framework     | References `angular2/copy.bara.sky`                                                                          |
+| [bazelbuild/bazel](https://github.com/bazelbuild/bazel)                         | Build system      | `devtools/blaze/bazel/admin/copybara/`                                                                       |
+| [grpc/grpc](https://github.com/grpc/grpc)                                       | RPC framework     | Multi-language sync                                                                                          |
+| [protocolbuffers/protobuf](https://github.com/protocolbuffers/protobuf)         | Serialization     | `PiperOrigin-RevId` labels                                                                                   |
+| [chromium/chromium](https://github.com/chromium/chromium)                       | Browser           | [Cronet copy.bara.sky](https://github.com/chromium/chromium/blob/main/components/cronet/gn2bp/copy.bara.sky) |
+| [google/gvisor](https://github.com/google/gvisor)                               | Container sandbox | `PiperOrigin-RevId`                                                                                          |
+| [google/perfetto](https://github.com/google/perfetto)                           | Tracing           | Chromium integration                                                                                         |
+| [google-deepmind/natural-plan](https://github.com/google-deepmind/natural-plan) | Research          | Piper → Gerrit                                                                                               |
+| [youtube/cobalt](https://github.com/youtube/cobalt)                             | HTML5 container   | Component sync                                                                                               |
 
 ### Other Organizations Using Copybara
 
